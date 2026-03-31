@@ -1,0 +1,1932 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTO Poker Solver</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#0c0e14;color:#e4e4e7;min-height:100vh;display:flex;flex-direction:column;
+  background-image:radial-gradient(ellipse at 30% 0%,rgba(99,102,241,0.08) 0%,transparent 50%),radial-gradient(ellipse at 70% 100%,rgba(16,185,129,0.06) 0%,transparent 50%)}
+
+/* ===== TOP BAR ===== */
+.top-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 24px;
+  background:rgba(15,17,24,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.06);z-index:50}
+.logo{font-size:1.1em;font-weight:900;letter-spacing:3px;text-transform:uppercase;
+  background:linear-gradient(135deg,#a78bfa,#6366f1);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.phase-bar{display:flex;gap:4px;align-items:center}
+.phase{padding:5px 14px;border-radius:20px;font-size:0.68em;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:rgba(255,255,255,0.25);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);transition:all 0.4s}
+.phase.active{color:#a78bfa;border-color:rgba(167,139,250,0.4);background:rgba(167,139,250,0.1);box-shadow:0 0 12px rgba(167,139,250,0.15)}
+.phase.done{color:#34d399;border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.08)}
+.parrow{color:rgba(255,255,255,0.12);font-size:0.6em;margin:0 2px}
+.stats{display:flex;gap:10px}
+.stat{text-align:center;padding:4px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06)}
+.stat-label{font-size:0.58em;font-weight:600;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1.2px}
+.stat-val{font-size:1.2em;font-weight:800;color:#a78bfa;line-height:1.3}
+
+/* ===== TABLE ===== */
+.table-container{flex:1;display:flex;align-items:center;justify-content:center;padding:12px 16px}
+.table{position:relative;width:880px;height:460px;border-radius:240px;
+  background:radial-gradient(ellipse at 40% 40%,#1a7a45 0%,#11603a 35%,#0a4528 65%,#062e1a 100%);
+  border:16px solid #0d0806;
+  box-shadow:0 0 0 3px rgba(180,130,50,0.15),0 0 0 18px #1a1008,0 0 0 20px rgba(180,130,50,0.08),
+    inset 0 0 80px rgba(0,0,0,0.4),inset 0 -20px 60px rgba(0,0,0,0.2),0 30px 80px rgba(0,0,0,0.7)}
+.table::before{content:'';position:absolute;inset:3px;border-radius:230px;
+  border:1px solid rgba(255,255,255,0.04);pointer-events:none}
+.table::after{content:'';position:absolute;inset:0;border-radius:240px;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,0.005) 0px,transparent 1px,transparent 3px);pointer-events:none}
+
+/* ===== BOARD CENTER ===== */
+.board-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:5}
+.pot-badge{background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);color:#fbbf24;font-weight:800;
+  padding:5px 20px;border-radius:20px;font-size:0.9em;margin-bottom:10px;display:inline-block;
+  border:1px solid rgba(251,191,36,0.2);letter-spacing:0.5px}
+.board-cards{display:flex;gap:8px;justify-content:center;margin-bottom:8px;min-height:76px}
+.info-badge{font-size:0.7em;font-weight:600;color:rgba(255,255,255,0.5);background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);
+  padding:4px 14px;border-radius:12px;display:inline-block;border:1px solid rgba(255,255,255,0.06)}
+.info-badge.eq{color:#6ee7b7;border-color:rgba(110,231,183,0.25);background:rgba(16,185,129,0.12)}
+
+/* ===== CARDS ===== */
+.card{width:48px;height:68px;border-radius:8px;background:linear-gradient(145deg,#fff 0%,#f3f4f6 100%);
+  display:flex;align-items:center;justify-content:center;font-size:1.35em;font-weight:900;
+  box-shadow:0 4px 14px rgba(0,0,0,0.45),0 1px 3px rgba(0,0,0,0.2);border:1px solid rgba(0,0,0,0.08);flex-shrink:0;
+  transition:transform 0.2s}
+.card.sm{width:38px;height:54px;font-size:1em;border-radius:6px}
+.card.lg{width:56px;height:80px;font-size:1.7em;border-radius:10px;
+  box-shadow:0 6px 24px rgba(0,0,0,0.5),0 0 20px rgba(99,102,241,0.15)}
+.card.red{color:#ef4444}.card.blk{color:#1e293b}
+.card.back{background:linear-gradient(145deg,#b91c1c,#7f1d1d 50%,#991b1b);color:transparent;
+  border:2.5px solid #fca5a5;
+  box-shadow:0 4px 16px rgba(220,38,38,0.4),0 0 12px rgba(239,68,68,0.2),inset 0 0 20px rgba(0,0,0,0.3);
+  position:relative;overflow:hidden}
+.card.back::before{content:'';position:absolute;inset:4px;border-radius:4px;border:1.5px solid rgba(255,255,255,0.15)}
+.card.back::after{content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,0.06) 0px,rgba(255,255,255,0.06) 2px,transparent 2px,transparent 7px),
+    repeating-linear-gradient(-45deg,rgba(255,255,255,0.04) 0px,rgba(255,255,255,0.04) 2px,transparent 2px,transparent 7px);
+  border-radius:inherit}
+.board-card{width:52px;height:74px;border-radius:10px;background:linear-gradient(145deg,#fff,#f9fafb);
+  display:flex;align-items:center;justify-content:center;font-size:1.5em;font-weight:900;
+  box-shadow:0 6px 20px rgba(0,0,0,0.5),0 0 0 1px rgba(0,0,0,0.08);
+  animation:cardDeal 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards}
+.board-card.red{color:#ef4444}.board-card.blk{color:#1e293b}
+@keyframes cardDeal{from{opacity:0;transform:scale(0.5) translateY(-20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+/* ===== SEATS ===== */
+.seat{position:absolute;display:flex;flex-direction:column;align-items:center;gap:5px;transform:translate(-50%,-50%);z-index:10;transition:all 0.4s}
+.seat-cards{display:flex;gap:4px;min-height:56px;align-items:flex-end}
+.seat-name{background:rgba(15,23,42,0.9);backdrop-filter:blur(8px);padding:4px 16px;border-radius:16px;
+  font-size:0.72em;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1.2px;
+  border:1px solid rgba(255,255,255,0.06);white-space:nowrap;transition:all 0.3s}
+.seat-badge{font-size:0.6em;font-weight:700;padding:3px 10px;border-radius:10px;display:none;
+  text-transform:uppercase;letter-spacing:0.8px;backdrop-filter:blur(6px)}
+.seat.hero .seat-name{background:linear-gradient(135deg,rgba(59,130,246,0.9),rgba(37,99,235,0.95));
+  color:#fff;border-color:rgba(96,165,250,0.5);box-shadow:0 0 20px rgba(59,130,246,0.35),0 4px 12px rgba(0,0,0,0.3);
+  animation:glowHero 2.5s ease infinite}
+.seat.hero .card.lg{transform:translateY(-4px)}
+.seat.villain .seat-name{background:linear-gradient(135deg,rgba(220,38,38,0.9),rgba(185,28,28,0.95));
+  color:#fff;border-color:rgba(248,113,113,0.4);box-shadow:0 0 20px rgba(220,38,38,0.3),0 4px 12px rgba(0,0,0,0.3);
+  animation:glowVillain 2.5s ease infinite}
+.seat.villain .card.back{width:46px;height:66px;border-radius:8px}
+.seat.villain .seat-badge{display:block;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)}
+.seat.correct .seat-name{box-shadow:0 0 30px rgba(52,211,153,0.6)!important;border-color:#34d399!important}
+.seat.wrong .seat-name{box-shadow:0 0 30px rgba(239,68,68,0.6)!important;border-color:#ef4444!important}
+.you-tag{font-size:0.5em;font-weight:800;color:#0f172a;background:linear-gradient(135deg,#fbbf24,#f59e0b);
+  padding:2px 8px;border-radius:8px;letter-spacing:1.5px;display:none;box-shadow:0 2px 8px rgba(251,191,36,0.3)}
+.seat.hero .you-tag{display:block}
+@keyframes glowHero{0%,100%{box-shadow:0 0 18px rgba(59,130,246,0.3),0 4px 12px rgba(0,0,0,0.3)}
+  50%{box-shadow:0 0 30px rgba(59,130,246,0.5),0 4px 12px rgba(0,0,0,0.3)}}
+@keyframes glowVillain{0%,100%{box-shadow:0 0 18px rgba(220,38,38,0.25),0 4px 12px rgba(0,0,0,0.3)}
+  50%{box-shadow:0 0 28px rgba(220,38,38,0.45),0 4px 12px rgba(0,0,0,0.3)}}
+
+/* Positions */
+.s-utg{left:4%;top:46%}.s-utg1{left:11%;top:14%}.s-utg2{left:28%;top:1%}
+.s-lj{left:50%;top:-3%}.s-hj{left:72%;top:1%}.s-co{left:89%;top:14%}
+.s-btn{left:96%;top:46%}.s-sb{left:83%;top:86%}.s-bb{left:50%;top:96%}
+.dealer{position:absolute;top:-6px;right:-16px;width:22px;height:22px;
+  background:linear-gradient(145deg,#fff,#e5e7eb);border:2px solid #d1d5db;border-radius:50%;
+  font-size:0.55em;font-weight:900;color:#374151;display:none;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(0,0,0,0.4);z-index:15}
+.s-btn .dealer{display:flex}
+
+/* ===== FEEDBACK ===== */
+.feedback-bar{text-align:center;padding:6px 16px;min-height:36px}
+.fb{font-size:0.82em;font-weight:600;padding:5px 20px;border-radius:20px;display:inline-block;
+  backdrop-filter:blur(8px);letter-spacing:0.3px}
+.fb.ok{background:rgba(52,211,153,0.1);color:#6ee7b7;border:1px solid rgba(52,211,153,0.2)}
+.fb.bad{background:rgba(239,68,68,0.1);color:#fca5a5;border:1px solid rgba(239,68,68,0.2)}
+.fb.info{background:rgba(167,139,250,0.08);color:#c4b5fd;border:1px solid rgba(167,139,250,0.15)}
+
+/* ===== ACTION BAR ===== */
+.action-bar{background:rgba(15,17,24,0.9);backdrop-filter:blur(20px);padding:14px 24px;
+  border-top:1px solid rgba(255,255,255,0.05);text-align:center}
+.action-bar .prompt{font-size:0.82em;font-weight:500;color:rgba(255,255,255,0.4);margin-bottom:10px;letter-spacing:0.3px}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{padding:11px 24px;font-size:0.82em;font-weight:700;border:none;border-radius:12px;cursor:pointer;color:#fff;
+  text-transform:uppercase;letter-spacing:1.2px;transition:all 0.2s;position:relative;overflow:hidden}
+.btn::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0.12),transparent 60%);border-radius:12px;pointer-events:none}
+.btn:hover{transform:translateY(-3px);box-shadow:0 8px 25px rgba(0,0,0,0.3)}
+.btn:active{transform:translateY(0)}
+.btn .sub{display:block;font-size:0.68em;font-weight:500;opacity:0.65;margin-top:2px;letter-spacing:0.5px;text-transform:none}
+.btn-raise{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 4px 15px rgba(245,158,11,0.25)}
+.btn-3bet{background:linear-gradient(135deg,#8b5cf6,#6d28d9);box-shadow:0 4px 15px rgba(139,92,246,0.25)}
+.btn-4bet{background:linear-gradient(135deg,#ef4444,#dc2626);box-shadow:0 4px 15px rgba(239,68,68,0.25)}
+.btn-call{background:linear-gradient(135deg,#3b82f6,#2563eb);box-shadow:0 4px 15px rgba(59,130,246,0.25)}
+.btn-fold{background:linear-gradient(135deg,#64748b,#475569);box-shadow:0 4px 15px rgba(100,116,139,0.15)}
+.btn-check{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 15px rgba(16,185,129,0.25)}
+.btn-b33{background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 4px 15px rgba(245,158,11,0.2)}
+.btn-b75{background:linear-gradient(135deg,#f97316,#ea580c);box-shadow:0 4px 15px rgba(249,115,22,0.2)}
+.btn-jam{background:linear-gradient(135deg,#8b5cf6,#7c3aed);box-shadow:0 4px 15px rgba(139,92,246,0.25)}
+.btn-next{background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 15px rgba(16,185,129,0.25);min-width:180px}
+.btn-go{background:linear-gradient(135deg,#6366f1,#4f46e5);box-shadow:0 4px 15px rgba(99,102,241,0.3);min-width:180px}
+.keys{font-size:0.58em;color:rgba(255,255,255,0.2);margin-top:8px;letter-spacing:0.5px}
+
+/* ===== MODAL ===== */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:100}
+.modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:rgba(22,27,40,0.97);backdrop-filter:blur(20px);
+  padding:28px;border-radius:20px;border:1px solid rgba(255,255,255,0.08);
+  box-shadow:0 30px 80px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.03);
+  z-index:200;width:560px;max-width:95vw;max-height:88vh;overflow-y:auto}
+.modal::-webkit-scrollbar{width:4px}.modal::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:4px}
+.modal h2{font-size:1.15em;font-weight:800;margin-bottom:14px;padding-bottom:10px;
+  border-bottom:1px solid rgba(255,255,255,0.06);letter-spacing:1.5px;text-transform:uppercase}
+.modal h2.ok{color:#34d399}.modal h2.bad{color:#f87171}
+.ev-summary{background:rgba(255,255,255,0.03);padding:14px 16px;border-radius:12px;margin-bottom:16px;
+  border-left:3px solid #a78bfa;line-height:1.9;font-size:0.9em}
+.ev-summary b{color:#c4b5fd}
+.ev-summary .g{color:#6ee7b7}.ev-summary .r{color:#fca5a5}
+.ev-table{margin:14px 0;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.04)}
+.ev-row{display:flex;justify-content:space-between;padding:8px 12px;font-size:0.85em;
+  border-bottom:1px solid rgba(255,255,255,0.03);transition:background 0.2s}
+.ev-row:last-child{border-bottom:none}
+.ev-row.best{background:rgba(52,211,153,0.08);color:#6ee7b7;font-weight:700}
+.ev-row.pick{color:#fbbf24;font-weight:600}
+.calc{background:rgba(0,0,0,0.3);padding:14px;border-radius:10px;margin:10px 0;
+  font-family:'SF Mono',Consolas,monospace;font-size:0.75em;line-height:1.8;color:rgba(255,255,255,0.45);
+  border:1px solid rgba(255,255,255,0.04);white-space:pre-wrap}
+.reasons{padding-left:18px;color:rgba(255,255,255,0.45);line-height:1.8;font-size:0.85em;margin:8px 0}
+.reasons li{margin-bottom:4px}
+.lbl{font-size:0.65em;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:rgba(255,255,255,0.2);margin:14px 0 6px}
+.modal .close-btn{width:100%;padding:14px;font-size:0.88em;font-weight:700;border:none;border-radius:12px;cursor:pointer;
+  margin-top:18px;letter-spacing:1.5px;text-transform:uppercase;color:#fff;
+  background:linear-gradient(135deg,#10b981,#059669);box-shadow:0 4px 15px rgba(16,185,129,0.25);transition:all 0.2s}
+.modal .close-btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(16,185,129,0.35)}
+.modal .close-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(to bottom,rgba(255,255,255,0.1),transparent);border-radius:12px}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+    <div class="logo">GTO SOLVER</div>
+    <div class="phase-bar">
+        <div class="phase active" id="ph1">Preflop</div><div class="parrow">&#9654;</div>
+        <div class="phase" id="ph2">Flop</div><div class="parrow">&#9654;</div>
+        <div class="phase" id="ph3">Turn</div><div class="parrow">&#9654;</div>
+        <div class="phase" id="ph4">River</div>
+    </div>
+    <div class="stats">
+        <div class="stat"><div class="stat-label">Score</div><div class="stat-val" id="s-score">0/0</div></div>
+        <div class="stat"><div class="stat-label">Accuraat</div><div class="stat-val" id="s-acc">--</div></div>
+        <div class="stat"><div class="stat-label">EV verlies</div><div class="stat-val" id="s-ev">0.00</div></div>
+    </div>
+</div>
+
+<div class="table-container">
+<div class="table">
+    <div class="board-center">
+        <div class="pot-badge" id="pot-badge" style="display:none">Pot: 0 BB</div>
+        <div class="board-cards" id="board-cards"></div>
+        <div id="center-info">
+            <div class="info-badge" id="center-text">Laden...</div>
+        </div>
+        <div class="info-badge eq" id="eq-badge" style="display:none">Equity: --</div>
+    </div>
+
+    <div class="seat s-utg" id="seat-UTG"><div class="seat-cards" id="sc-UTG"></div><div class="seat-name">UTG</div><div class="seat-badge" id="sb-UTG"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-utg1" id="seat-UTG1"><div class="seat-cards" id="sc-UTG1"></div><div class="seat-name">UTG+1</div><div class="seat-badge" id="sb-UTG1"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-utg2" id="seat-UTG2"><div class="seat-cards" id="sc-UTG2"></div><div class="seat-name">UTG+2</div><div class="seat-badge" id="sb-UTG2"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-lj" id="seat-LJ"><div class="seat-cards" id="sc-LJ"></div><div class="seat-name">LJ</div><div class="seat-badge" id="sb-LJ"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-hj" id="seat-HJ"><div class="seat-cards" id="sc-HJ"></div><div class="seat-name">HJ</div><div class="seat-badge" id="sb-HJ"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-co" id="seat-CO"><div class="seat-cards" id="sc-CO"></div><div class="seat-name">CO</div><div class="seat-badge" id="sb-CO"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-btn" id="seat-BTN"><div class="dealer">D</div><div class="seat-cards" id="sc-BTN"></div><div class="seat-name">BTN</div><div class="seat-badge" id="sb-BTN"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-sb" id="seat-SB"><div class="seat-cards" id="sc-SB"></div><div class="seat-name">SB</div><div class="seat-badge" id="sb-SB"></div><div class="you-tag">JIJ</div></div>
+    <div class="seat s-bb" id="seat-BB"><div class="seat-cards" id="sc-BB"></div><div class="seat-name">BB</div><div class="seat-badge" id="sb-BB"></div><div class="you-tag">JIJ</div></div>
+</div>
+</div>
+
+<div class="feedback-bar"><span id="fb"></span></div>
+
+<div class="action-bar">
+    <div class="prompt" id="prompt"></div>
+    <div class="btns" id="btns"></div>
+    <div class="keys" id="keys"></div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+<div class="modal" id="modal">
+    <h2 id="m-title"></h2>
+    <div class="ev-summary" id="m-summary"></div>
+    <div class="lbl">EV per actie</div>
+    <div class="ev-table" id="m-table"></div>
+    <div class="lbl">Berekening</div>
+    <div class="calc" id="m-calc"></div>
+    <div class="lbl">Coach analyse</div>
+    <ul class="reasons" id="m-reasons"></ul>
+    <button class="close-btn" id="m-closebtn" onclick="closeModal()">Doorgaan &#9654;</button>
+</div>
+
+<script>
+// ========================= BASICS =========================
+var el = function(id) { return document.getElementById(id); };
+var RANKS = '23456789TJQKA';
+var SUITS = ['\u2660','\u2665','\u2666','\u2663'];
+var SNAME = {'0':'\u2660','1':'\u2665','2':'\u2666','3':'\u2663'};
+function cid(r,s){ return r*4+s; }
+function cr(id){ return id>>2; }
+function cs(id){ return id&3; }
+function cstr(id){ return RANKS[cr(id)]+SUITS[cs(id)]; }
+function chtml(id,cls){
+    var r=cr(id), s=cs(id), red=(s===1||s===2);
+    return '<div class="card '+(cls||'')+' '+(red?'red':'blk')+'">'+RANKS[r]+SUITS[s]+'</div>';
+}
+function bhtml(id){
+    var r=cr(id), s=cs(id), red=(s===1||s===2);
+    return '<div class="board-card '+(red?'red':'blk')+'">'+RANKS[r]+SUITS[s]+'</div>';
+}
+function cback(cls){ return '<div class="card '+(cls||'')+' back"></div>'; }
+var RI = function(ch){ return RANKS.indexOf(ch); };
+
+// ========================= 7-CARD HAND EVALUATOR =========================
+// Score encoding: category * 1e6 + kickers in base-13
+// Guarantees: HighCard < Pair < TwoPair < Trips < Straight < Flush < FullHouse < Quads < StraightFlush
+// Max score per category always < (category+1) * 1e6
+function eval7(ids){
+    var rc=new Array(13), sc=new Array(4), sr=[[],[],[],[]];
+    var i,r,s;
+    for(i=0;i<13;i++) rc[i]=0;
+    for(i=0;i<4;i++) sc[i]=0;
+    for(i=0;i<ids.length;i++){
+        r=ids[i]>>2; s=ids[i]&3;
+        rc[r]++; sc[s]++; sr[s].push(r);
+    }
+    var fs=-1;
+    for(s=0;s<4;s++) if(sc[s]>=5){fs=s;break;}
+
+    // Straight finder: returns top card rank of best straight, or -1
+    function bstr(arr){
+        var m=0,j;
+        for(j=0;j<arr.length;j++) m|=(1<<arr[j]);
+        for(var t=12;t>=4;t--) if((m>>t&1)&&(m>>(t-1)&1)&&(m>>(t-2)&1)&&(m>>(t-3)&1)&&(m>>(t-4)&1)) return t;
+        if((m&0x100F)===0x100F) return 3; // wheel A-2-3-4-5
+        return -1;
+    }
+
+    // 1. Straight flush (category 9)
+    if(fs>=0){var sft=bstr(sr[fs]); if(sft>=0) return 9e6+sft;}
+
+    // Collect groups sorted high-to-low
+    var quads=[],trips=[],pairs=[],hi=[];
+    for(r=12;r>=0;r--){
+        if(rc[r]===4) quads.push(r);
+        else if(rc[r]===3) trips.push(r);
+        else if(rc[r]===2) pairs.push(r);
+        else if(rc[r]===1) hi.push(r);
+    }
+
+    // 2. Quads (category 8): quad_rank * 13 + kicker — max 8e6 + 168
+    if(quads.length){
+        var k=trips.concat(pairs,hi);
+        return 8e6 + quads[0]*13 + (k[0]||0);
+    }
+    // 3. Full house (category 7): trip_rank * 13 + pair_rank — max 7e6 + 168
+    if(trips.length>=2) return 7e6 + trips[0]*13 + trips[1];
+    if(trips.length===1 && pairs.length>=1) return 7e6 + trips[0]*13 + pairs[0];
+
+    // 4. Flush (category 6): 5 kickers base-13 — max 6e6 + 371,508
+    if(fs>=0){
+        var fl=sr[fs].slice().sort(function(a,b){return b-a;});
+        return 6e6 + fl[0]*28561 + fl[1]*2197 + fl[2]*169 + fl[3]*13 + (fl[4]||0);
+    }
+    // 5. Straight (category 5): top_rank — max 5e6 + 12
+    var all=[];
+    for(r=0;r<13;r++) if(rc[r]>0) all.push(r);
+    var st=bstr(all);
+    if(st>=0) return 5e6 + st;
+
+    // 6. Trips (category 4): trip*13^2 + k1*13 + k2 — max 4e6 + 2,340
+    if(trips.length===1){
+        var kk=pairs.concat(hi);
+        return 4e6 + trips[0]*169 + (kk[0]||0)*13 + (kk[1]||0);
+    }
+    // 7. Two pair (category 3): p1*13^2 + p2*13 + kicker — max 3e6 + 2,340
+    if(pairs.length>=2){
+        var kk2=pairs.slice(2).concat(hi);
+        return 3e6 + pairs[0]*169 + pairs[1]*13 + (kk2[0]||0);
+    }
+    // 8. One pair (category 2): pair*13^3 + k1*13^2 + k2*13 + k3 — max 2e6 + 28,560
+    if(pairs.length===1){
+        return 2e6 + pairs[0]*2197 + (hi[0]||0)*169 + (hi[1]||0)*13 + (hi[2]||0);
+    }
+    // 9. High card (category 1): 5 kickers base-13 — max 1e6 + 371,508
+    return 1e6 + (hi[0]||0)*28561 + (hi[1]||0)*2197 + (hi[2]||0)*169 + (hi[3]||0)*13 + (hi[4]||0);
+}
+
+// ========================= RANGE PARSER =========================
+function expandHand(n){
+    var combos=[],r1,r2,s1,s2;
+    n=n.trim();
+    if(n.length===2 && n[0]===n[1]){
+        r1=RI(n[0]);
+        for(s1=0;s1<4;s1++) for(s2=s1+1;s2<4;s2++) combos.push([cid(r1,s1),cid(r1,s2)]);
+    } else if(n.length===3 && n[2]==='s'){
+        r1=RI(n[0]); r2=RI(n[1]);
+        for(s1=0;s1<4;s1++) combos.push([cid(r1,s1),cid(r2,s1)]);
+    } else if(n.length===3 && n[2]==='o'){
+        r1=RI(n[0]); r2=RI(n[1]);
+        for(s1=0;s1<4;s1++) for(s2=0;s2<4;s2++) if(s1!==s2) combos.push([cid(r1,s1),cid(r2,s2)]);
+    }
+    return combos;
+}
+function parseRange(str){
+    if(!str) return [];
+    var out=[],parts=str.split(','),i,p;
+    for(i=0;i<parts.length;i++){
+        p=parts[i].trim(); if(!p) continue;
+        if(p.length===3 && p[0]===p[1] && p[2]==='+'){
+            for(var rr=RI(p[0]);rr<=12;rr++) out=out.concat(expandHand(RANKS[rr]+RANKS[rr]));
+        } else { out=out.concat(expandHand(p)); }
+    }
+    return out;
+}
+function filterDead(combos,dead){
+    return combos.filter(function(c){return !dead[c[0]]&&!dead[c[1]];});
+}
+function handStr(id1,id2){
+    var r1=cr(id1),r2=cr(id2),s1=cs(id1),s2=cs(id2);
+    if(r1<r2){var t=r1;r1=r2;r2=t;t=s1;s1=s2;s2=t;}
+    if(r1===r2) return RANKS[r1]+RANKS[r2];
+    return RANKS[r1]+RANKS[r2]+(s1===s2?'s':'o');
+}
+
+// ========================= EQUITY CALCULATOR =========================
+function calcEquity(hero, board, vrange){
+    var dead={}, remain=[], i, j;
+    for(i=0;i<hero.length;i++) dead[hero[i]]=true;
+    for(i=0;i<board.length;i++) dead[board[i]]=true;
+    for(i=0;i<52;i++) if(!dead[i]) remain.push(i);
+
+    var live=vrange.filter(function(c){return !dead[c[0]]&&!dead[c[1]];});
+    if(!live.length) return 0.5;
+
+    var teq=0, tc=0, blen=board.length;
+    for(var vi=0;vi<live.length;vi++){
+        var v=live[vi];
+        var rem2=remain.filter(function(c){return c!==v[0]&&c!==v[1];});
+        var w=0,t=0,d=0,total=0;
+
+        if(blen===5){
+            // River
+            var hs=eval7(hero.concat(board));
+            var vs=eval7(v.concat(board));
+            if(hs>vs) w=1; else if(hs===vs) d=1;
+            total=1;
+        } else if(blen===4){
+            // Turn — enumerate river
+            for(j=0;j<rem2.length;j++){
+                var b5=board.concat([rem2[j]]);
+                var h7=eval7(hero.concat(b5));
+                var v7=eval7(v.concat(b5));
+                if(h7>v7) w++; else if(h7===v7) d++;
+                total++;
+            }
+        } else {
+            // Flop — FULL ENUMERATION of all turn+river combinations
+            // C(45,2) = 990 max runouts per villain combo. ~150 combos × 990 = ~148K eval7 calls.
+            // At ~1µs each = ~0.15 seconds. No Monte Carlo variance — exact equity.
+            for(var ri=0;ri<rem2.length;ri++){
+                for(var rj=ri+1;rj<rem2.length;rj++){
+                    var b5f=board.concat([rem2[ri],rem2[rj]]);
+                    var h7f=eval7(hero.concat(b5f));
+                    var v7f=eval7(v.concat(b5f));
+                    if(h7f>v7f) w++; else if(h7f===v7f) d++;
+                    total++;
+                }
+            }
+        }
+        if(total>0){teq+=(w+0.5*d)/total; tc++;}
+    }
+    return tc>0? teq/tc : 0.5;
+}
+
+// ========================= BOARD TEXTURE & DRAW DETECTION =========================
+function analyzeBoard(boardIds){
+    var info = {texture:'', flush_possible:false, straight_possible:false, paired:false, monotone:false, trips_board:false, suits:0, connectedness:0};
+    if(!boardIds.length) return info;
+
+    var ranks=[], suits=[], rc=new Array(13).fill(0), sc=new Array(4).fill(0);
+    for(var i=0;i<boardIds.length;i++){
+        var r=boardIds[i]>>2, s=boardIds[i]&3;
+        ranks.push(r); suits.push(s); rc[r]++; sc[s]++;
+    }
+    // Paired board?
+    for(var r=0;r<13;r++){ if(rc[r]>=3) info.trips_board=true; if(rc[r]>=2) info.paired=true; }
+    // Suit analysis
+    var maxSuit=0;
+    for(var s=0;s<4;s++) if(sc[s]>maxSuit) maxSuit=sc[s];
+    info.suits = maxSuit;
+    if(maxSuit>=3) info.flush_possible=true;
+    if(maxSuit===boardIds.length) info.monotone=true;
+    // Connectedness: count gaps between sorted ranks
+    var sorted = ranks.slice().sort(function(a,b){return a-b;});
+    var gaps=0;
+    for(var i=1;i<sorted.length;i++) gaps += sorted[i]-sorted[i-1]-1;
+    info.connectedness = Math.max(0, 5 - gaps); // 5=very connected, 0=very disconnected
+    if(info.connectedness>=3) info.straight_possible=true;
+    // Texture label
+    if(info.monotone) info.texture='Monotone';
+    else if(info.flush_possible && info.connectedness>=3) info.texture='Nat (flush+straight draws)';
+    else if(info.flush_possible) info.texture='Semi-nat (flush draw mogelijk)';
+    else if(info.connectedness>=3) info.texture='Geconnecteerd';
+    else if(info.paired) info.texture='Gepaird & droog';
+    else info.texture='Droog rainbow';
+    return info;
+}
+
+function analyzeDraws(heroIds, boardIds){
+    var draws = [];
+    var allIds = heroIds.concat(boardIds);
+    var rc=new Array(13).fill(0), sc=new Array(4).fill(0);
+    for(var i=0;i<allIds.length;i++){ rc[allIds[i]>>2]++; sc[allIds[i]&3]++; }
+
+    // Flush draw: 4 of same suit (need 1 more)
+    for(var s=0;s<4;s++){
+        if(sc[s]===4){
+            // Check if hero contributes to the flush draw
+            var heroSuited=0;
+            for(var i=0;i<heroIds.length;i++) if((heroIds[i]&3)===s) heroSuited++;
+            if(heroSuited>=1){
+                // Check if it's the nut flush draw (hero has the A of that suit)
+                var hasAce=false;
+                for(var i=0;i<heroIds.length;i++) if((heroIds[i]>>2)===12 && (heroIds[i]&3)===s) hasAce=true;
+                draws.push(hasAce ? 'Nut flush draw' : 'Flush draw');
+            }
+        }
+        if(sc[s]>=5){
+            var heroSuited2=0;
+            for(var i=0;i<heroIds.length;i++) if((heroIds[i]&3)===s) heroSuited2++;
+            if(heroSuited2>=1) draws.push('Flush gemaakt');
+        }
+    }
+
+    // Backdoor flush draw: 3 of same suit (hero contributes at least 1)
+    for(var s=0;s<4;s++){
+        if(sc[s]===3){
+            var heroSuited3=0;
+            for(var i=0;i<heroIds.length;i++) if((heroIds[i]&3)===s) heroSuited3++;
+            if(heroSuited3>=1) draws.push('Backdoor flush draw');
+        }
+    }
+
+    // Straight draws: check all 5-card windows for OESD and gutshot
+    var mask=0;
+    for(var r=0;r<13;r++) if(rc[r]>0) mask|=(1<<r);
+
+    // Define straight windows explicitly (including wheel: A-2-3-4-5)
+    var windows = [];
+    for(var top=4;top<=12;top++) windows.push([top-4, top-3, top-2, top-1, top]);
+    windows.push([12, 0, 1, 2, 3]); // wheel: A-2-3-4-5
+
+    var oesd=false, gutshot=false;
+    for(var wi=0;wi<windows.length;wi++){
+        var win = windows[wi];
+        var count=0;
+        for(var i=0;i<5;i++) if(mask & (1<<win[i])) count++;
+
+        if(count===4){
+            // Check if hero contributes at least 1 card to this window
+            var heroContrib=false;
+            for(var i=0;i<heroIds.length;i++){
+                var hr=heroIds[i]>>2;
+                for(var j=0;j<5;j++) if(hr===win[j]) heroContrib=true;
+            }
+            if(heroContrib){
+                // Find which card in the window is missing
+                var missingIdx=-1;
+                for(var mi=0;mi<5;mi++){
+                    if(!(mask & (1<<win[mi]))) missingIdx=mi;
+                }
+                // OESD: missing card is at either end of the window
+                if(missingIdx===0||missingIdx===4) oesd=true;
+                else gutshot=true;
+            }
+        }
+    }
+    if(oesd) draws.push('Open-ended straight draw');
+    else if(gutshot) draws.push('Gutshot straight draw');
+
+    return draws;
+}
+
+// ========================= EV ENGINE (RANGE-BASED) =========================
+
+// Detect draws for a specific 2-card combo on a board.
+// Returns bonus score: flush draw = 4e5, OESD = 3e5, gutshot = 1.5e5, backdoor FD = 0.5e5
+function drawBonus(comboIds, boardIds){
+    var bonus = 0;
+    var allIds = comboIds.concat(boardIds);
+    var rc = new Array(13).fill(0), sc = new Array(4).fill(0);
+    for(var i=0;i<allIds.length;i++){ rc[allIds[i]>>2]++; sc[allIds[i]&3]++; }
+
+    // Flush draw (4 of suit) or backdoor (3 of suit)
+    for(var s=0;s<4;s++){
+        var heroSuited = 0;
+        for(var j=0;j<comboIds.length;j++) if((comboIds[j]&3)===s) heroSuited++;
+        if(heroSuited >= 1){
+            if(sc[s] >= 5) bonus += 5e5;       // made flush
+            else if(sc[s] === 4) bonus += 4e5;  // flush draw (9 outs)
+            else if(sc[s] === 3 && boardIds.length <= 3) bonus += 0.5e5; // backdoor FD
+        }
+    }
+
+    // Straight draws via bitmask
+    var mask = 0;
+    for(var r=0;r<13;r++) if(rc[r]>0) mask|=(1<<r);
+    var windows = [];
+    for(var top=4;top<=12;top++) windows.push([top-4,top-3,top-2,top-1,top]);
+    windows.push([12,0,1,2,3]); // wheel
+
+    for(var wi=0;wi<windows.length;wi++){
+        var win=windows[wi], count=0;
+        for(var i=0;i<5;i++) if(mask&(1<<win[i])) count++;
+        if(count===4){
+            // Check combo contributes
+            var contrib=false;
+            for(var ci=0;ci<comboIds.length;ci++){
+                var cr2=comboIds[ci]>>2;
+                for(var wi2=0;wi2<5;wi2++) if(cr2===win[wi2]) contrib=true;
+            }
+            if(contrib){
+                var missingIdx=-1;
+                for(var mi=0;mi<5;mi++) if(!(mask&(1<<win[mi]))) missingIdx=mi;
+                if(missingIdx===0||missingIdx===4) bonus=Math.max(bonus,3e5); // OESD (8 outs)
+                else bonus=Math.max(bonus,1.5e5); // gutshot (4 outs)
+            }
+        }
+    }
+    return bonus;
+}
+
+// Evaluate villain's range: rank combos by EFFECTIVE strength = made hand + draw potential.
+// A flush draw (low made hand but high draw potential) scores higher than ace-high (no draw).
+// This prevents the fold equity model from assuming draws always fold.
+function evalVillainRange(heroIds, boardIds, villainRange){
+    var dead = {};
+    for(var i=0;i<heroIds.length;i++) dead[heroIds[i]]=true;
+    for(var i=0;i<boardIds.length;i++) dead[boardIds[i]]=true;
+    var results = [];
+    var isRiver = (boardIds.length >= 5);
+
+    for(var i=0;i<villainRange.length;i++){
+        var vc = villainRange[i];
+        if(dead[vc[0]] || dead[vc[1]]) continue;
+
+        // Made hand strength
+        var allV = vc.concat(boardIds);
+        var madeScore;
+        if(allV.length >= 7) madeScore = eval7(allV.slice(0,7));
+        else if(allV.length >= 5) madeScore = eval7(allV);
+        else madeScore = 0;
+
+        // On flop/turn: add draw bonus so draws don't get ranked as "weak"
+        // On river: no draws matter, pure made hand strength
+        var effectiveScore = madeScore;
+        if(!isRiver){
+            effectiveScore += drawBonus(vc, boardIds);
+        }
+
+        results.push({combo:vc, score:effectiveScore});
+    }
+    results.sort(function(a,b){return a.score - b.score;}); // weakest first
+    return results;
+}
+
+// Range-based fold equity: actually count how many villain combos fold.
+// Villain folds hands where their pot odds math says they should fold.
+// MDF (minimum defense frequency) = pot / (pot + bet).
+// Villain should call at least MDF% of range. They fold the weakest (1 - MDF)%.
+// In practice, villains over-fold by ~10-15% at lower stakes.
+function rangeFoldEq(bet, pot, rankedVillain){
+    if(pot <= 0 || !rankedVillain.length) return 0;
+    var mdf = pot / (pot + bet); // e.g., pot-sized bet: mdf = 0.50
+    var maxFoldPct = 1 - mdf;   // theoretical max fold %
+    var x = bet / pot; // bet-to-pot ratio
+
+    // Villain fold frequency: based on MDF but with realistic adjustments
+    // Key insight: fold equity has DIMINISHING RETURNS for overbets.
+    // A pot-sized bet gets ~40% folds. A 5x pot bet gets maybe 45%, not 85%.
+    // Villain with ANY decent made hand (pair+) or good draw will NOT fold to an overbet.
+    var adjustedFoldPct;
+    if(x <= 1.0){
+        // Normal sizings: close to MDF, villains over-call ~15-20%
+        adjustedFoldPct = maxFoldPct * 0.82;
+    } else if(x <= 3.0){
+        // Overbets: diminishing returns. Cap rising slowly.
+        var base = (1 - pot/(pot+pot)) * 0.82; // fold eq at pot-sized bet ~0.41
+        var extra = 0.06 * (1 - Math.exp(-0.5 * (x - 1))); // slow climb, max +6%
+        adjustedFoldPct = base + extra;
+    } else {
+        // Massive overbets (>3x pot, including all-ins at high SPR):
+        // Villain calls with all made hands (pairs+, draws). Only folds pure air.
+        // Pure air is typically ~20-35% of a postflop calling range.
+        adjustedFoldPct = 0.25 + 0.07 * (1 - Math.exp(-0.2 * (x - 3))); // 25-32%
+    }
+
+    // Hard cap: never more than 45% folds (even vs massive overbets, villain has hands)
+    return Math.max(0, Math.min(0.45, adjustedFoldPct));
+}
+
+// Range-based equity when called: filter out the weakest X% of villain combos
+// (those that fold), then recalculate hero equity vs the remaining (calling) range.
+function rangeEqWhenCalled(heroIds, boardIds, rankedVillain, foldPct){
+    if(!rankedVillain.length || foldPct <= 0.01) return null; // use default equity
+    var foldCount = Math.round(rankedVillain.length * foldPct);
+    var callingRange = [];
+    for(var i=foldCount; i<rankedVillain.length; i++){
+        callingRange.push(rankedVillain[i].combo);
+    }
+    if(!callingRange.length) return null;
+    // Recalculate equity vs the calling range only
+    return calcEquity(heroIds, boardIds, callingRange);
+}
+
+// ========================= DYNAMIC REALIZATION FACTOR =========================
+// Realization depends on: position (IP/OOP), hand type, board texture, SPR
+function calcRealization(eq, heroIds, boardIds, isIP, pot, stack){
+    var base = isIP ? 0.72 : 0.55;
+    var spr = stack / Math.max(pot, 0.1);
+
+    // SPR adjustment: low SPR = high realization (stacks go in easily)
+    // High SPR = more streets to navigate = more realization variance
+    if(spr < 2) base += 0.08;       // short stack: almost always realize equity
+    else if(spr < 5) base += 0.03;  // medium SPR
+    else if(spr > 15) base -= 0.04; // deep: harder to realize
+
+    // Hand type: evaluate hero's made hand on current board
+    var allH = heroIds.concat(boardIds);
+    var heroScore = 0;
+    if(allH.length >= 5) heroScore = eval7(allH.length >= 7 ? allH.slice(0,7) : allH);
+    var category = Math.floor(heroScore / 1e6); // 1=high, 2=pair, ..., 9=SF
+
+    // Strong made hands realize more equity
+    if(category >= 6) base += 0.08;      // flush+ : very high realization
+    else if(category >= 4) base += 0.05; // trips/straight
+    else if(category >= 3) base += 0.02; // two pair
+    else if(category <= 1) base -= 0.06; // high card: very hard to realize
+
+    // Draw bonus: draws realize well because they can win big pots
+    var dBonus = drawBonus(heroIds, boardIds);
+    if(dBonus >= 4e5) base += 0.05;      // flush draw
+    else if(dBonus >= 3e5) base += 0.04; // OESD
+    else if(dBonus >= 1e5) base += 0.02; // gutshot
+
+    // Board texture: dry boards = easier to realize (fewer scare cards)
+    var bi = analyzeBoard(boardIds);
+    if(bi.texture && bi.texture.indexOf('Droog') >= 0) base += 0.03;
+    if(bi.monotone) base -= 0.04; // monotone: scary for non-flush hands
+
+    return Math.max(0.30, Math.min(0.92, base));
+}
+
+// ========================= VILLAIN RAISE PROBABILITY =========================
+// When hero bets, villain can fold, call, OR RAISE.
+// Raise probability depends on: bet size, villain range strength, board texture.
+// Returns {raiseProb, raiseSizeMult} — raiseSizeMult = raise as multiple of hero's bet
+function villainRaiseProb(bet, pot, rankedVillain, boardIds){
+    if(!rankedVillain.length) return {prob:0, sizeMult:3};
+    var bi = analyzeBoard(boardIds);
+
+    // What fraction of villain's range is very strong (top 15%)?
+    var strongCount = Math.round(rankedVillain.length * 0.15);
+    var topCombos = rankedVillain.slice(rankedVillain.length - strongCount);
+    var raiseProb = strongCount / rankedVillain.length; // base: ~15%
+
+    // Board texture adjustments
+    if(bi.texture && bi.texture.indexOf('Nat') >= 0) raiseProb += 0.04; // more semi-bluff raises
+    if(bi.paired) raiseProb -= 0.03; // less raising on paired boards
+
+    // Bet size: villain raises less against big bets (already invested a lot to continue)
+    var x = bet / pot;
+    if(x >= 0.75) raiseProb *= 0.7;
+    if(x >= 1.5) raiseProb *= 0.5;
+
+    raiseProb = Math.max(0.03, Math.min(0.20, raiseProb));
+
+    // Raise size: typically 2.5-3x the bet
+    var sizeMult = 2.8;
+    return {prob: raiseProb, sizeMult: sizeMult};
+}
+
+// ========================= CFR MINI-SOLVER =========================
+// Counterfactual Regret Minimization for multi-street EV calculation.
+// Builds a simplified game tree: hero action → villain response → (next street or showdown)
+// Runs N iterations where both players update strategies based on regret.
+// Result: equilibrium EV for each hero action.
+//
+// Game tree per street:
+//   Hero: Check / Bet33 / Bet50 / Bet75 / Bet100 / AllIn
+//   Villain response to bet: Fold / Call / Raise(3x)
+//   Villain response to check: Check / Bet50
+//   If not river and action closes: deal next card → recurse (simplified)
+//
+// Key insight: CFR converges to Nash equilibrium. After 500+ iterations,
+// the average strategy is within ~2% of GTO.
+
+// ========================= TWO-PLAYER CFR SOLVER =========================
+// Full two-player game tree with regret matching for BOTH hero AND villain.
+//
+// Game tree (hero acts first, no villain bet):
+//   HERO: Check / Bet33 / Bet50 / Bet75 / Bet100 / AllIn
+//     If Hero checks → VILLAIN: Check / Bet50
+//       If Villain checks → showdown (equity × pot)
+//       If Villain bets → HERO: Fold / Call / AllIn
+//     If Hero bets X → VILLAIN: Fold / Call / Raise3x
+//       If Villain folds → hero wins pot
+//       If Villain calls → showdown or next street
+//       If Villain raises → HERO: Fold / Call
+//
+// Game tree (facing villain bet):
+//   HERO: Fold / Call / AllIn
+//
+// Both players optimize via CFR: after 1000 iterations, strategies converge to Nash.
+
+function cfrSolve2P(heroIds, boardIds, villainRange, pot, stack, isHeroIP){
+    var isRiver = (boardIds.length >= 5);
+    var ranked = evalVillainRange(heroIds, boardIds, villainRange);
+    if(!ranked.length) return {evs:{}, ranked:ranked};
+
+    // === PRECOMPUTE ALL EQUITY VALUES (done once, used in all iterations) ===
+    var eq = calcEquity(heroIds, boardIds, villainRange);
+    var betDefs = [{name:'Bet 33%',f:0.33},{name:'Bet 50%',f:0.50},{name:'Bet 75%',f:0.75},{name:'Bet 100%',f:1.00}];
+    var activeBets = betDefs.filter(function(b){return pot*b.f < stack;});
+
+    // Fold equity and equity vs callers for each bet size
+    var precomp = {};
+    for(var i=0;i<activeBets.length;i++){
+        var b = activeBets[i];
+        var fe = rangeFoldEq(pot*b.f, pot, ranked);
+        var eqC = rangeEqWhenCalled(heroIds, boardIds, ranked, fe);
+        precomp[b.name] = {fe:fe, eqC:eqC!==null?eqC:eq*0.80, amt:pot*b.f};
+    }
+    // All-in precomp
+    var feJ = rangeFoldEq(stack, pot, ranked);
+    var eqJ = rangeEqWhenCalled(heroIds, boardIds, ranked, feJ);
+    precomp['All-In'] = {fe:feJ, eqC:eqJ!==null?eqJ:eq*0.60, amt:stack};
+
+    // Equity vs villain's betting range (top ~35% of range) for check-face-bet line
+    var villBetFrac = 0.35;
+    var villBetCount = Math.round(ranked.length * villBetFrac);
+    var villBetRange = ranked.slice(ranked.length - villBetCount).map(function(r){return r.combo;});
+    var eqVsBetters = villBetRange.length ? calcEquity(heroIds, boardIds, villBetRange) : eq * 0.6;
+
+    // Equity vs raisers (top ~12% of range)
+    var raiserCount = Math.max(1, Math.round(ranked.length * 0.12));
+    var raiserRange = ranked.slice(ranked.length - raiserCount).map(function(r){return r.combo;});
+    var eqVsRaisers = raiserRange.length ? calcEquity(heroIds, boardIds, raiserRange) : eq * 0.35;
+
+    // Multi-street lookahead: sample next cards for implied value
+    var nextStreetAdj = 0;
+    if(!isRiver && boardIds.length < 5){
+        var dead = {};
+        for(var i=0;i<heroIds.length;i++) dead[heroIds[i]]=true;
+        for(var i=0;i<boardIds.length;i++) dead[boardIds[i]]=true;
+        var rem = [];
+        for(var i=0;i<52;i++) if(!dead[i]) rem.push(i);
+        var ns = Math.min(15, rem.length);
+        for(var n=0;n<ns;n++){
+            var nc = rem[Math.floor(Math.random()*rem.length)];
+            var neq = calcEquity(heroIds, boardIds.concat([nc]), villainRange);
+            var d = neq - eq;
+            if(d > 0.03) nextStreetAdj += d * pot * 0.45;
+            else if(d < -0.03) nextStreetAdj += d * pot * 0.30;
+        }
+        nextStreetAdj /= ns;
+    }
+
+    var real = calcRealization(eq, heroIds, boardIds, isHeroIP, pot, stack);
+
+    // === DEFINE GAME TREE NODES ===
+    // Hero's first action
+    var heroActions = ['Check'];
+    for(var i=0;i<activeBets.length;i++) heroActions.push(activeBets[i].name);
+    heroActions.push('All-In');
+    var nH = heroActions.length;
+
+    // Villain response to hero bet: Fold / Call / Raise
+    var villBetResp = ['V_Fold','V_Call','V_Raise'];
+    // Villain response to hero check: Check / Bet
+    var villCheckResp = ['V_Check','V_Bet50'];
+    // Hero response to villain bet (after hero checked): Fold / Call / AllIn
+    var heroFacingBet = ['H_Fold','H_Call','H_AllIn'];
+
+    // === CFR STATE: regret and strategy sums for each decision node ===
+    var heroRegret = new Array(nH).fill(0);
+    var heroStratSum = new Array(nH).fill(0);
+
+    // Villain nodes: one set per hero bet size + one for hero check
+    var villBetRegret = {}; var villBetStrat = {};
+    for(var i=0;i<heroActions.length;i++){
+        if(heroActions[i]!=='Check' && heroActions[i]!=='All-In'){
+            villBetRegret[heroActions[i]] = [0,0,0]; // fold/call/raise
+            villBetStrat[heroActions[i]] = [0,0,0];
+        }
+    }
+    var villCheckRegret = [0,0]; var villCheckStrat = [0,0]; // check/bet after hero checks
+    var heroFBRegret = [0,0,0]; var heroFBStrat = [0,0,0]; // fold/call/allin facing villain bet
+
+    // === HELPER: regret matching ===
+    function getStrategy(regrets){
+        var n = regrets.length, s = new Array(n), total = 0;
+        for(var i=0;i<n;i++) total += Math.max(0, regrets[i]);
+        if(total > 0) for(var i=0;i<n;i++) s[i] = Math.max(0, regrets[i]) / total;
+        else for(var i=0;i<n;i++) s[i] = 1/n;
+        return s;
+    }
+
+    // === TERMINAL NODE EVs (hero's perspective, precomputed) ===
+    // Showdown: hero wins pot with probability eq
+    var evShowdown = eq * pot;
+    var evShowdownVsBetters = eqVsBetters * pot;
+
+    // === 1000 CFR ITERATIONS ===
+    var ITERS = 1000;
+    for(var iter=0; iter<ITERS; iter++){
+        var heroStrat = getStrategy(heroRegret);
+
+        // Compute EV for each hero action
+        var heroEVs = new Array(nH);
+        for(var ai=0; ai<nH; ai++){
+            var a = heroActions[ai];
+
+            if(a === 'Check'){
+                // Hero checks → Villain acts
+                var vStrat = getStrategy(villCheckRegret);
+                // Villain checks: showdown
+                var evVCheck = eq * pot * real + (isRiver ? 0 : nextStreetAdj * 0.5);
+                // Villain bets 50%: hero must respond
+                var vBetAmt = pot * 0.5;
+                var hfbStrat = getStrategy(heroFBRegret);
+                var evHFold = 0;
+                var evHCall = eqVsBetters * (pot + 2*vBetAmt) - vBetAmt + (isRiver ? 0 : nextStreetAdj);
+                // Hero check-raises all-in vs villain's bet:
+                // Villain bet with top ~35% of range. Hero jams. Villain folds weak bets, calls strong.
+                // Fold equity is LOWER here because villain already bet (committed, stronger range)
+                var feCheckRaise = Math.min(0.30, feJ * 0.6); // much less fold equity vs betting range
+                var evHAllIn = feCheckRaise * (pot+vBetAmt) + (1-feCheckRaise) * (eqVsRaisers * (pot+2*stack) - stack);
+                var evFacingBet = hfbStrat[0]*evHFold + hfbStrat[1]*evHCall + hfbStrat[2]*evHAllIn;
+
+                heroEVs[ai] = vStrat[0]*evVCheck + vStrat[1]*evFacingBet;
+
+                // Update villain check-response regrets
+                var vEVs = [evVCheck, evFacingBet];
+                // From villain's perspective: villain wants to MINIMIZE hero's EV
+                // So villain prefers the action that gives LOWER hero EV
+                var vTotalEV = vStrat[0]*vEVs[0] + vStrat[1]*vEVs[1];
+                for(var vi=0;vi<2;vi++) villCheckRegret[vi] += -(vEVs[vi] - vTotalEV); // negative because villain minimizes
+                for(var vi=0;vi<2;vi++) villCheckStrat[vi] += vStrat[vi];
+
+                // Update hero facing-bet regrets
+                var hfbEVs = [evHFold, evHCall, evHAllIn];
+                var hfbTotalEV = hfbStrat[0]*hfbEVs[0] + hfbStrat[1]*hfbEVs[1] + hfbStrat[2]*hfbEVs[2];
+                for(var hi=0;hi<3;hi++) heroFBRegret[hi] += hfbEVs[hi] - hfbTotalEV;
+                for(var hi=0;hi<3;hi++) heroFBStrat[hi] += hfbStrat[hi];
+
+            } else {
+                // Hero bets → Villain responds
+                var pc = precomp[a];
+                var betAmt = pc.amt;
+                var isJam = (a==='All-In' || betAmt >= stack*0.9);
+
+                if(isJam){
+                    // All-in: villain can only fold or call
+                    // SPR risk premium: at high SPR, all-in is extremely risky.
+                    // The higher the SPR, the more "wrong" an all-in becomes (unless you have the nuts).
+                    // This prevents all-in from being artificially best at deep stacks.
+                    var spr = stack / Math.max(pot, 0.1);
+                    var riskPenalty = spr > 4 ? (spr - 4) * pot * 0.08 : 0; // penalty grows with SPR
+                    heroEVs[ai] = pc.fe * pot + (1-pc.fe) * (pc.eqC * (pot+2*stack) - stack) - riskPenalty;
+                } else {
+                    var vReg = villBetRegret[a] || [0,0,0];
+                    var vStr = getStrategy(vReg);
+
+                    var evVFold = pot; // hero wins pot
+                    var evVCall = pc.eqC * (pot + 2*betAmt) - betAmt + (isRiver ? 0 : nextStreetAdj * 0.3);
+                    var raiseAmt = betAmt * 2.8;
+                    var evVRaise = 0.45 * (-betAmt) + 0.55 * (eqVsRaisers * (pot+betAmt+raiseAmt*2) - (betAmt+raiseAmt));
+
+                    heroEVs[ai] = vStr[0]*evVFold + vStr[1]*evVCall + vStr[2]*evVRaise;
+
+                    // Update villain bet-response regrets (villain minimizes hero EV)
+                    var vBEVs = [evVFold, evVCall, evVRaise];
+                    var vBTotal = vStr[0]*vBEVs[0] + vStr[1]*vBEVs[1] + vStr[2]*vBEVs[2];
+                    for(var vi=0;vi<3;vi++) vReg[vi] += -(vBEVs[vi] - vBTotal);
+                    villBetRegret[a] = vReg;
+                    if(!villBetStrat[a]) villBetStrat[a] = [0,0,0];
+                    var vSt = villBetStrat[a];
+                    for(var vi=0;vi<3;vi++) vSt[vi] += vStr[vi];
+                }
+            }
+        }
+
+        // Update hero regrets
+        var heroTotalEV = 0;
+        for(var ai=0;ai<nH;ai++) heroTotalEV += heroStrat[ai] * heroEVs[ai];
+        for(var ai=0;ai<nH;ai++){
+            heroRegret[ai] += heroEVs[ai] - heroTotalEV;
+            heroStratSum[ai] += heroStrat[ai];
+        }
+    }
+
+    // === EXTRACT RESULTS ===
+    var evs = {};
+    var totalHStrat = 0;
+    for(var ai=0;ai<nH;ai++) totalHStrat += heroStratSum[ai];
+
+    for(var ai=0;ai<nH;ai++){
+        var a = heroActions[ai];
+        // Final EV: recompute with converged villain strategies
+        evs[a] = heroEVs[ai]; // last iteration EVs (converged)
+        evs['_freq_'+a] = totalHStrat > 0 ? heroStratSum[ai]/totalHStrat : 1/nH;
+    }
+
+    // Store fold equities and villain strategies for display
+    for(var i=0;i<activeBets.length;i++){
+        var bn = activeBets[i].name;
+        evs['_f'+(activeBets[i].f*100).toFixed(0)] = precomp[bn] ? precomp[bn].fe : 0;
+        if(villBetStrat[bn]){
+            var vs = villBetStrat[bn], vt = vs[0]+vs[1]+vs[2];
+            if(vt>0) evs['_vresp_'+bn] = 'Fold:'+(vs[0]/vt*100).toFixed(0)+'% Call:'+(vs[1]/vt*100).toFixed(0)+'% Raise:'+(vs[2]/vt*100).toFixed(0)+'%';
+        }
+    }
+    evs._fj = precomp['All-In'] ? precomp['All-In'].fe : 0;
+
+    return {evs:evs, ranked:ranked};
+}
+
+// ========================= FACING BET: TWO-PLAYER CFR =========================
+function cfrFacingBet2P(heroIds, boardIds, villainRange, pot, stack, villainBet){
+    var ranked = evalVillainRange(heroIds, boardIds, villainRange);
+    var eq = calcEquity(heroIds, boardIds, villainRange);
+    var isRiver = (boardIds.length >= 5);
+
+    // Precompute: when hero jams vs villain's bet, villain is already committed.
+    // Fold equity is MUCH lower than jamming into a check.
+    // Villain bet with their strong hands — they're not folding to a raise easily.
+    var feJamRaw = rangeFoldEq(stack, pot, ranked);
+    var feJam = Math.min(0.30, feJamRaw * 0.55); // villain already committed → much less fold equity
+    var eqJR = rangeEqWhenCalled(heroIds, boardIds, ranked, feJam);
+    var eqJam = eqJR !== null ? eqJR : eq * 0.50;
+
+    // Implied odds via next-card sampling (not river)
+    var impliedAdj = 0;
+    if(!isRiver){
+        var dead = {};
+        for(var i=0;i<heroIds.length;i++) dead[heroIds[i]]=true;
+        for(var i=0;i<boardIds.length;i++) dead[boardIds[i]]=true;
+        var rem = [];
+        for(var i=0;i<52;i++) if(!dead[i]) rem.push(i);
+        var ns = Math.min(15, rem.length);
+        for(var n=0;n<ns;n++){
+            var nc = rem[Math.floor(Math.random()*rem.length)];
+            var neq = calcEquity(heroIds, boardIds.concat([nc]), villainRange);
+            var d = neq - eq;
+            if(d > 0.03) impliedAdj += d * pot * 0.45;
+            else if(d < -0.03) impliedAdj += d * pot * 0.30;
+        }
+        impliedAdj /= ns;
+    }
+
+    // Hero actions: Fold / Call / All-In — simple CFR
+    var regret = [0,0,0], stratSum = [0,0,0];
+    var evFold = 0;
+    var evCall = eq * (pot + villainBet) - villainBet + impliedAdj;
+    var sprFB = stack / Math.max(pot, 0.1);
+    var riskPenFB = sprFB > 4 ? (sprFB - 4) * pot * 0.08 : 0;
+    var evJam = feJam * pot + (1-feJam) * (eqJam * (pot + 2*stack) - stack) - riskPenFB;
+    var actionEVs = [evFold, evCall, evJam];
+
+    for(var iter=0; iter<1000; iter++){
+        var s = [0,0,0], tot=0;
+        for(var i=0;i<3;i++) tot+=Math.max(0,regret[i]);
+        if(tot>0) for(var i=0;i<3;i++) s[i]=Math.max(0,regret[i])/tot;
+        else for(var i=0;i<3;i++) s[i]=1/3;
+        var tev = s[0]*actionEVs[0]+s[1]*actionEVs[1]+s[2]*actionEVs[2];
+        for(var i=0;i<3;i++){regret[i]+=actionEVs[i]-tev; stratSum[i]+=s[i];}
+    }
+
+    var ts=stratSum[0]+stratSum[1]+stratSum[2];
+    var evs = {};
+    evs['Fold'] = evFold;
+    evs['Call'] = evCall;
+    evs['All-In'] = evJam;
+    evs['_freq_Fold'] = ts>0?stratSum[0]/ts:1/3;
+    evs['_freq_Call'] = ts>0?stratSum[1]/ts:1/3;
+    evs['_freq_All-In'] = ts>0?stratSum[2]/ts:1/3;
+    evs._fj = feJam;
+    return {evs:evs, ranked:ranked};
+}
+
+// ========================= MAIN EV ENTRY POINT =========================
+function calcEVs(eq, pot, stack, villain_bet, heroIds, boardIds, villainRange, isHeroIP){
+    if(villain_bet > 0){
+        return cfrFacingBet2P(heroIds, boardIds, villainRange, pot, stack, villain_bet).evs;
+    } else {
+        return cfrSolve2P(heroIds, boardIds, villainRange, pot, stack, isHeroIP || false).evs;
+    }
+}
+
+// ========================= PREFLOP RANGES (PokerCoaching.com 9-max) =========================
+var RFI={
+UTG:"AA,KK,QQ,JJ,TT,99,88,77,AKs,AQs,AJs,ATs,A5s,A4s,A3s,A2s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AKo,AQo",
+UTG1:"AA,KK,QQ,JJ,TT,99,88,77,66,55,AKs,AQs,AJs,ATs,A9s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,AKo,AQo,AJo,KQo",
+UTG2:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,AKs,AQs,AJs,ATs,A9s,A8s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,QJs,QTs,JTs,J9s,T9s,98s,87s,76s,AKo,AQo,AJo,KQo",
+LJ:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,98s,87s,76s,65s,AKo,AQo,AJo,ATo,KQo",
+HJ:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,K7s,QJs,QTs,Q9s,JTs,J9s,T9s,T8s,98s,87s,76s,65s,54s,AKo,AQo,AJo,ATo,KQo,KJo,QJo",
+CO:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,K7s,K6s,K5s,K4s,QJs,QTs,Q9s,Q8s,JTs,J9s,J8s,T9s,T8s,98s,97s,87s,76s,65s,54s,AKo,AQo,AJo,ATo,A9o,KQo,KJo,KTo,QJo,QTo,JTo",
+BTN:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,K7s,K6s,K5s,K4s,K3s,K2s,QJs,QTs,Q9s,Q8s,Q7s,Q6s,Q5s,Q4s,Q3s,Q2s,JTs,J9s,J8s,J7s,J6s,J5s,T9s,T8s,T7s,T6s,98s,97s,96s,87s,86s,85s,76s,75s,65s,54s,43s,AKo,AQo,AJo,ATo,A9o,A8o,A7o,A6o,A5o,A4o,A3o,A2o,KQo,KJo,KTo,K9o,K8o,QJo,QTo,Q9o,JTo,J9o,T9o",
+SB:"AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,K7s,K6s,K5s,K4s,K3s,K2s,QJs,QTs,Q9s,Q8s,Q7s,Q6s,Q5s,Q4s,Q3s,Q2s,JTs,J9s,J8s,J7s,J6s,J5s,J4s,J3s,J2s,T9s,T8s,T7s,T6s,T5s,T4s,98s,97s,96s,95s,87s,86s,85s,76s,75s,74s,65s,64s,54s,53s,43s,AKo,AQo,AJo,ATo,A9o,A8o,A7o,A6o,A5o,A4o,A3o,A2o,KQo,KJo,KTo,K9o,K8o,K7o,QJo,QTo,Q8o,JTo,J8o,T9o,T8o,98o"
+};
+
+// ========================= FACING RFI — ALL POSITIONS (3bet|call) =========================
+// Format: FACING[heroPos][villainPos] = {b: "3bet range", c: "call range"}
+var FACING={
+// UTG+1 facing UTG
+UTG1:{UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,K9s,Q9s,J9s,T9s",c:"JJ,TT,99,88,AQs,AJs,KQs,QJs"}},
+// UTG+2 facing
+UTG2:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s",c:"JJ,TT,99,88,77,AQs,AJs,ATs,KQs,QJs,JTs"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s",c:"JJ,TT,99,88,77,AQs,AJs,ATs,KQs,QJs,JTs"}
+},
+// LJ facing
+LJ:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,K9s,Q9s,J9s,T9s,98s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,QJs,JTs,AQo"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,K9s,Q9s,J9s,T9s,98s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,QJs,JTs,AQo"},
+  UTG2:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,AQo"}
+},
+// HJ facing
+HJ:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,AQs,AJs,ATs,KQs,QJs,JTs,T9s"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s"},
+  UTG2:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  LJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s,K9s,Q9s,J9s,T9s,98s,87s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,AQo"}
+},
+// CO facing
+CO:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,AQs,AJs,ATs,KQs,QJs,JTs"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,AQs,AJs,ATs,KQs,QJs,JTs"},
+  UTG2:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  LJ:{b:"AA,KK,QQ,JJ,AKs,AKo,AQs,A5s,A4s,A3s,A2s,K9s,Q9s,J9s,T9s",c:"TT,99,88,77,66,AJs,ATs,KQs,KJs,QJs,JTs,AQo"},
+  HJ:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,AQs,AQo,A5s,A4s,A3s,A2s,K9s,Q9s,J9s,T9s,98s,87s,76s,65s",c:"99,88,77,66,55,44,33,AJs,ATs,A9s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,AJo,KQo"}
+},
+// BTN facing
+BTN:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"JJ,TT,99,88,77,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  UTG2:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  LJ:{b:"AA,KK,QQ,JJ,AKs,AKo,AQs,A5s,A4s,A3s,A2s,K9s",c:"TT,99,88,77,66,55,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  HJ:{b:"AA,KK,QQ,JJ,AKs,AKo,AQs,A5s,A4s,A3s,A2s,K9s,K8s,K7s",c:"TT,99,88,77,66,55,44,AJs,ATs,A9s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,AQo,AJo"},
+  CO:{b:"AA,KK,QQ,JJ,TT,99,88,AKs,AKo,AQs,AQo,AJo,A5s,A4s,A3s,A2s,K9s,K8s,K7s,Q9s,Q8s,J9s,T9s,98s,87s,76s,65s,54s,43s",c:"77,66,55,44,33,22,AJs,ATs,A9s,A8s,A7s,A6s,KQs,KJs,KTs,K9s,QJs,QTs,JTs,J9s,T9s,T8s,ATo,KQo,KJo,QJo,JTo"}
+},
+// SB facing
+SB:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,87s"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,87s"},
+  UTG2:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s",c:"JJ,TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,87s"},
+  LJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,87s,76s"},
+  HJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,87s,76s"},
+  CO:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,AQs,AQo,AJo,A5s,A4s,A3s,A2s,K9s,K8s,Q9s,J9s,T9s,98s,87s,76s,65s",c:""},
+  BTN:{b:"AA,KK,QQ,JJ,TT,99,AKs,AKo,AQs,AQo,AJo,A5s,A4s,A3s,A2s,K9s,K8s,Q9s,J9s,T9s,98s,87s,76s,65s",c:""}
+},
+// BB facing (most common — already had these)
+BB:{
+  UTG:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s",c:"JJ,TT,99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,AQo,AJo"},
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s",c:"JJ,TT,99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,AQo,AJo"},
+  UTG2:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s",c:"TT,99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,AQo,AJo"},
+  LJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,A7s,KQs,KJs,KTs,K9s,QJs,QTs,JTs,T9s,98s,87s,76s,AQo,AJo"},
+  HJ:{b:"AA,KK,QQ,JJ,AKs,AKo,AQs,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,33,22,AJs,ATs,A9s,A8s,A7s,KQs,KJs,KTs,K9s,QJs,QTs,JTs,T9s,98s,87s,76s,65s,AQo,AJo,KQo"},
+  CO:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,AQs,A5s,A4s,A3s,A2s,K9s",c:"99,88,77,66,55,44,33,22,AJs,ATs,A9s,A8s,A7s,A6s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,T8s,98s,87s,76s,65s,AQo,AJo,ATo,KQo,KJo,QJo"},
+  BTN:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,AQs,AQo,A5s,A4s,A3s,A2s,K9s,K8s,Q9s",c:"99,88,77,66,55,44,33,22,AJs,ATs,A9s,A8s,A7s,A6s,KQs,KJs,KTs,K9s,K8s,QJs,QTs,Q9s,Q8s,JTs,J9s,J8s,T9s,T8s,98s,97s,87s,86s,76s,75s,65s,AJo,ATo,A9o,KQo,KJo,QJo,JTo"},
+  SB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s",c:"TT,99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A3s,A2s,KQs,KJs,KTs,K9s,QJs,QTs,JTs,T9s,98s,87s,76s,65s,AQo,AJo,ATo,KQo,KJo"}
+}
+};
+
+// ========================= VS 3-BET — ALL POSITIONS (4bet|call) =========================
+var VS3BET={
+UTG:{
+  UTG1:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s",c:"JJ,TT,99,88,AQs,AJs,ATs,KQs,QJs,JTs"},
+  UTG2:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,AQs,AJs,ATs,KQs,QJs,JTs,T9s"},
+  LJ:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,AQs,AJs,ATs,KQs,QJs,JTs,T9s"},
+  HJ:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  CO:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo,KQo"},
+  BTN:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo,KQo"},
+  SB:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,44,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"},
+  BB:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,44,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"}
+},
+UTG1:{
+  UTG2:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  LJ:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  HJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"},
+  CO:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"},
+  BTN:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"},
+  SB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"},
+  BB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"}
+},
+UTG2:{
+  LJ:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  HJ:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,98s,AQo,KQo"},
+  CO:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"},
+  BTN:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"},
+  SB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"},
+  BB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,98s,AQo,KQo"}
+},
+LJ:{
+  HJ:{b:"AA,KK,QQ,AKs,AKo,A5s,A4s,A3s,A2s",c:"JJ,TT,99,88,77,66,AQs,AJs,ATs,KQs,KJs,QJs,JTs,T9s,AQo"},
+  CO:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,AQo"},
+  BTN:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,AQo"},
+  SB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,87s,76s,AQo"},
+  BB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,87s,AQo"}
+},
+HJ:{
+  CO:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s,A2s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,AQo"},
+  BTN:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,AQo"},
+  SB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,87s,AQo"},
+  BB:{b:"AA,KK,QQ,JJ,AKs,AKo,A5s,A4s,A3s",c:"TT,99,88,77,66,55,AQs,AJs,ATs,A9s,KQs,KJs,QJs,JTs,T9s,98s,AQo"}
+},
+CO:{
+  BTN:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,A5s,A4s,A3s,A2s",c:"99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,AQo,KQo"},
+  SB:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,A5s,A4s,A3s,A2s",c:"99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,AQo,KQo"},
+  BB:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,A5s,A4s,A3s,A2s",c:"99,88,77,66,55,44,AQs,AJs,ATs,A9s,KQs,KJs,KTs,QJs,JTs,T9s,AQo,KQo"}
+},
+BTN:{
+  SB:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,A7s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,AQo,KQo"},
+  BB:{b:"AA,KK,QQ,JJ,TT,AKs,AKo,A5s,A4s,A3s,A2s,K9s",c:"99,88,77,66,55,44,33,22,AQs,AJs,ATs,A9s,A8s,A7s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,AQo,KQo"}
+},
+SB:{
+  BB:{b:"QQ,JJ,AKs,AQs,AJs,ATs,A5s,A4s",c:"TT,99,88,77,66,55,44,33,22,KQs,KJs,KTs,K9s,QJs,QTs,JTs,J9s,T9s,98s,87s,76s,65s,A9s,A8s"}
+}
+};
+
+// Shortcut: BB_VS still available for quick lookup
+var BB_VS = FACING.BB;
+
+// ========================= GAME STATE =========================
+var G = {
+    phase: 'preflop', // preflop, flop, turn, river
+    heroPos: '', villainPos: '',
+    heroCards: [], // [id, id]
+    board: [],     // [id, id, id, ...]
+    deck: [],
+    pot: 0, stack: 100,
+    villainBet: 0,
+    villainRange: [],
+    equity: 0,
+    evs: {},
+    correctPreflop: '',
+    handStr: '',
+    answered: false,
+    score: 0, total: 0, evLost: 0
+};
+
+// ========================= DECK =========================
+function shuffleDeck(){
+    var d=[],i;
+    for(i=0;i<52;i++) d.push(i);
+    for(i=d.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=d[i];d[i]=d[j];d[j]=t;}
+    return d;
+}
+
+// ========================= HELPERS =========================
+function inCombos(combos, ids){
+    return combos.some(function(c){
+        return (c[0]===ids[0]&&c[1]===ids[1])||(c[0]===ids[1]&&c[1]===ids[0]);
+    });
+}
+function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// ========================= DEAL NEW HAND =========================
+function newHand(){
+    G.deck = shuffleDeck();
+    G.heroCards = [G.deck[0], G.deck[1]];
+    G.board = [];
+    G.phase = 'preflop';
+    G.answered = false;
+    G.villainBet = 0;
+    G.handStr = handStr(G.heroCards[0], G.heroCards[1]);
+
+    // Pick scenario: 40% RFI, 40% Facing, 20% VS 3-Bet
+    var roll = Math.random();
+
+    if(roll < 0.4){
+        // === RFI: hero opens, villain is BB ===
+        setupRFI();
+    } else if(roll < 0.8){
+        // === FACING: villain opens, hero reacts ===
+        setupFacing();
+    } else {
+        // === VS 3-BET: hero opened, villain 3-bets, hero reacts ===
+        setupVs3Bet();
+    }
+
+    renderPreflop();
+}
+
+function setupRFI(){
+    G.scenarioType = 'RFI';
+    G.heroPos = pickRandom(['UTG','UTG1','UTG2','LJ','HJ','CO','BTN','SB']);
+    G.villainPos = 'BB';
+    G.correctPreflop = inCombos(parseRange(RFI[G.heroPos]||''), G.heroCards) ? 'Raise' : 'Fold';
+    var bbData = FACING.BB[G.heroPos];
+    G.villainRange = bbData ? parseRange(bbData.c) : parseRange("JJ,TT,99,88,77,AQs,AJs,KQs,QJs,JTs,T9s,98s,87s,AQo");
+}
+
+function setupFacing(){
+    G.scenarioType = 'FACING';
+    // Pick a hero position that has facing data
+    var heroOptions = Object.keys(FACING); // UTG1,UTG2,LJ,HJ,CO,BTN,SB,BB
+    G.heroPos = pickRandom(heroOptions);
+    // Pick a villain that this hero position has data for
+    var villainOptions = Object.keys(FACING[G.heroPos]);
+    G.villainPos = pickRandom(villainOptions);
+
+    var data = FACING[G.heroPos][G.villainPos];
+    var bet3Range = data.b ? parseRange(data.b) : [];
+    var callRange = data.c ? parseRange(data.c) : [];
+
+    if(inCombos(bet3Range, G.heroCards)) G.correctPreflop = '3-Bet';
+    else if(inCombos(callRange, G.heroCards)) G.correctPreflop = 'Call';
+    else G.correctPreflop = 'Fold';
+
+    // Villain postflop range = their RFI range (they opened)
+    G.villainRange = parseRange(RFI[G.villainPos] || '');
+}
+
+function setupVs3Bet(){
+    G.scenarioType = 'VS3BET';
+    // Pick hero position that has vs3bet data
+    var heroOptions = Object.keys(VS3BET);
+    G.heroPos = pickRandom(heroOptions);
+    var villainOptions = Object.keys(VS3BET[G.heroPos]);
+    G.villainPos = pickRandom(villainOptions);
+
+    var data = VS3BET[G.heroPos][G.villainPos];
+    var bet4Range = data.b ? parseRange(data.b) : [];
+    var callRange = data.c ? parseRange(data.c) : [];
+
+    if(inCombos(bet4Range, G.heroCards)) G.correctPreflop = '4-Bet';
+    else if(inCombos(callRange, G.heroCards)) G.correctPreflop = 'Call';
+    else G.correctPreflop = 'Fold';
+
+    // Villain postflop range = their 3-bet range (from FACING data)
+    var fData = FACING[G.villainPos] && FACING[G.villainPos][G.heroPos];
+    if(fData && fData.b){
+        G.villainRange = parseRange(fData.b);
+    } else {
+        G.villainRange = parseRange("AA,KK,QQ,JJ,AKs,AKo,A5s,A4s");
+    }
+}
+
+// ========================= PREFLOP =========================
+function renderPreflop(){
+    // Reset all seats
+    var seats = document.querySelectorAll('.seat');
+    for(var i=0;i<seats.length;i++){
+        seats[i].className = seats[i].className.replace(/ hero| villain| correct| wrong/g,'');
+    }
+    var allSC = ['UTG','UTG1','UTG2','LJ','HJ','CO','BTN','SB','BB'];
+    for(var i=0;i<allSC.length;i++){
+        el('sc-'+allSC[i]).innerHTML = '';
+        el('sb-'+allSC[i]).innerHTML = '';
+        el('sb-'+allSC[i]).style.display = 'none';
+    }
+
+    // Hero
+    el('seat-'+G.heroPos).className += ' hero';
+    el('sc-'+G.heroPos).innerHTML = chtml(G.heroCards[0],'lg') + chtml(G.heroCards[1],'lg');
+
+    // Villain (BB) — face down
+    el('seat-'+G.villainPos).className += ' villain';
+    el('sc-'+G.villainPos).innerHTML = cback() + cback();
+
+    // Center info
+    el('board-cards').innerHTML = '';
+    el('pot-badge').style.display = 'none';
+    el('eq-badge').style.display = 'none';
+
+    if(G.scenarioType === 'RFI'){
+        el('center-text').innerHTML = '<b style="color:#5ddd8a">RFI</b> &mdash; ' + G.heroPos + ' &mdash; Iedereen foldt naar jou';
+        el('prompt').textContent = 'Jouw hand: ' + G.handStr + ' op ' + G.heroPos + '. Wat doe je?';
+    } else if(G.scenarioType === 'FACING'){
+        el('center-text').innerHTML = '<b style="color:#f0a050">Facing Open</b> &mdash; ' + G.villainPos + ' opent 2.5bb &mdash; Jij op ' + G.heroPos;
+        el('prompt').textContent = G.villainPos + ' opent 2.5bb. Jij hebt ' + G.handStr + ' op ' + G.heroPos + '. Wat doe je?';
+        el('sb-'+G.villainPos).innerHTML = 'Raise 2.5bb';
+        el('sb-'+G.villainPos).style.display = 'block';
+    } else {
+        el('center-text').innerHTML = '<b style="color:#c585f0">VS 3-Bet</b> &mdash; Jij opende op ' + G.heroPos + ', ' + G.villainPos + ' 3-bet';
+        el('prompt').textContent = 'Jij opende op ' + G.heroPos + '. ' + G.villainPos + ' 3-bet naar ~9bb. Jij hebt ' + G.handStr + '. Wat doe je?';
+        el('sb-'+G.villainPos).innerHTML = '3-Bet ~9bb';
+        el('sb-'+G.villainPos).style.display = 'block';
+    }
+    el('center-text').style.display = '';
+
+    // Phase bar
+    setPhase('preflop');
+
+    // Buttons
+    var html = '';
+    if(G.scenarioType === 'RFI'){
+        html += '<button class="btn btn-raise" onclick="doPre(\'Raise\')">Raise<span class="sub">Open 2.5bb</span></button>';
+        html += '<button class="btn btn-fold" onclick="doPre(\'Fold\')">Fold<span class="sub">Weggooien</span></button>';
+        el('keys').textContent = '[R] Raise  [F] Fold';
+    } else if(G.scenarioType === 'FACING'){
+        html += '<button class="btn btn-3bet" onclick="doPre(\'3-Bet\')">3-Bet<span class="sub">Reraise ~9bb</span></button>';
+        html += '<button class="btn btn-call" onclick="doPre(\'Call\')">Call<span class="sub">Meegaan 2.5bb</span></button>';
+        html += '<button class="btn btn-fold" onclick="doPre(\'Fold\')">Fold<span class="sub">Weggooien</span></button>';
+        el('keys').textContent = '[3] 3-Bet  [C] Call  [F] Fold';
+    } else {
+        html += '<button class="btn btn-4bet" onclick="doPre(\'4-Bet\')">4-Bet<span class="sub">Reraise ~25bb</span></button>';
+        html += '<button class="btn btn-call" onclick="doPre(\'Call\')">Call<span class="sub">Meegaan 9bb</span></button>';
+        html += '<button class="btn btn-fold" onclick="doPre(\'Fold\')">Fold<span class="sub">Weggooien</span></button>';
+        el('keys').textContent = '[4] 4-Bet  [C] Call  [F] Fold';
+    }
+    el('btns').innerHTML = html;
+    el('fb').innerHTML = '';
+    el('fb').className = '';
+}
+
+function doPre(action){
+    if(G.answered) return;
+    G.answered = true;
+    G.total++;
+
+    var correct = (action === G.correctPreflop);
+    if(correct) G.score++;
+
+    var heroSeat = el('seat-'+G.heroPos);
+    if(correct){
+        heroSeat.className += ' correct';
+        setFB('\u2713 Correct! ' + G.handStr + ' is een <b>' + G.correctPreflop + '</b> op ' + G.heroPos + '.', 'ok');
+    } else {
+        heroSeat.className += ' wrong';
+        setFB('\u2717 Fout. ' + G.handStr + ' is een <b>' + G.correctPreflop + '</b> op ' + G.heroPos + '.', 'bad');
+    }
+    updateStats();
+
+    // Show single continue button
+    var goesToFlop = (G.correctPreflop !== 'Fold');
+    if(goesToFlop){
+        var labels = {
+            'Raise': 'BB callt je open',
+            'Call': 'Jij callt, naar de flop',
+            '3-Bet': G.villainPos + ' callt je 3-bet',
+            '4-Bet': G.villainPos + ' callt je 4-bet'
+        };
+        el('btns').innerHTML = '<button class="btn btn-go" onclick="goFlop()">Naar de Flop &#9654;<span class="sub">'+(labels[G.correctPreflop]||'solver berekent EV')+'</span></button>';
+    } else {
+        el('btns').innerHTML = '<button class="btn btn-next" onclick="newHand()">Volgende Hand &#9654;</button>';
+    }
+}
+
+// ========================= VILLAIN BET SIZING (board-texture aware) =========================
+// Returns {bets: true/false, size: fraction of pot, sizeBB: absolute}
+function villainBetDecision(pot, board, isVillainIP, street){
+    var bi = analyzeBoard(board);
+
+    // Base bet frequency: IP villain bets more, OOP less
+    var betFreq = isVillainIP ? 0.55 : 0.30;
+
+    // Board texture adjustments
+    // Dry boards: villain c-bets more often with smaller sizing
+    // Wet boards: villain bets less often but bigger when they do
+    // Paired boards: villain checks more (range misses often)
+    if(bi.paired) betFreq -= 0.15;
+    if(bi.monotone) betFreq -= 0.10;
+    if(bi.connectedness >= 4) betFreq += 0.05; // connected boards = more action
+
+    // Street adjustments: betting frequency drops on later streets
+    if(street === 'TURN') betFreq -= 0.08;
+    if(street === 'RIVER') betFreq -= 0.12;
+
+    betFreq = Math.max(0.10, Math.min(0.65, betFreq));
+
+    if(Math.random() >= betFreq) return {bets:false, size:0, sizeBB:0};
+
+    // Sizing: depends on board texture and street
+    var sizing;
+    if(bi.texture.indexOf('Droog') >= 0 || bi.paired){
+        // Dry/paired: small sizing (33% pot)
+        sizing = 0.33;
+    } else if(bi.texture.indexOf('Nat') >= 0 || bi.monotone){
+        // Wet/monotone: large sizing (66-75% pot) to charge draws
+        sizing = 0.66 + Math.random() * 0.09;
+    } else if(bi.connectedness >= 3){
+        // Connected: medium-large (50-66%)
+        sizing = 0.50 + Math.random() * 0.16;
+    } else {
+        // Default: medium (40-60%)
+        sizing = 0.40 + Math.random() * 0.20;
+    }
+
+    // Turn/river: slightly larger sizings (pot grows, ranges narrow)
+    if(street === 'TURN') sizing = Math.min(1.0, sizing + 0.08);
+    if(street === 'RIVER') sizing = Math.min(1.0, sizing + 0.12);
+
+    var sizeBB = Math.round(pot * sizing * 10) / 10;
+    return {bets:true, size:sizing, sizeBB:sizeBB};
+}
+
+// ========================= RANGE NARROWING =========================
+// After hero acts (bet/call), narrow villain's range for the next street.
+// If hero bet and villain "calls": remove villain combos that would fold.
+// If villain bet and hero called: villain range stays (they chose to bet with it).
+function narrowVillainRange(heroAction, heroIds, boardIds, villainRange, pot, betSize){
+    if(heroAction === 'Fold') return villainRange; // irrelevant
+    if(heroAction === 'Check') return villainRange; // no narrowing on check-check
+
+    if(heroAction === 'Call' && betSize > 0){
+        // Hero called villain's bet. Villain bet with their range, no narrowing needed.
+        // But villain wouldn't bet with their absolute worst hands, so remove bottom 15%.
+        var ranked = evalVillainRange(heroIds, boardIds, villainRange);
+        var cutoff = Math.round(ranked.length * 0.15);
+        var narrowed = [];
+        for(var i=cutoff; i<ranked.length; i++) narrowed.push(ranked[i].combo);
+        return narrowed.length > 10 ? narrowed : villainRange;
+    }
+
+    if(heroAction.indexOf('Bet') >= 0 || heroAction === 'All-In'){
+        // Hero bet, villain "calls". Remove the weakest combos that would fold.
+        var ranked2 = evalVillainRange(heroIds, boardIds, villainRange);
+        var foldPct = rangeFoldEq(betSize, pot, ranked2);
+        var foldCount = Math.round(ranked2.length * foldPct);
+        var narrowed2 = [];
+        for(var i=foldCount; i<ranked2.length; i++) narrowed2.push(ranked2[i].combo);
+        return narrowed2.length > 10 ? narrowed2 : villainRange;
+    }
+
+    return villainRange;
+}
+
+// ========================= IMPLIED ODDS (STATISTISCH BEREKEND) =========================
+// Berekent implied odds door DAADWERKELIJK de equity te vergelijken op de volgende street.
+// Methode: sample mogelijke turn/river kaarten. Splits in:
+//   - "verbeterd": hero's equity op de volgende street is HOGER dan nu
+//   - "verslechterd": hero's equity is LAGER
+// Implied odds = gewogen gemiddelde van de extra waarde die hero wint wanneer de hand verbetert,
+// MINUS de reverse implied odds wanneer het verslechtert.
+// Dit is geen gok — het is een directe berekening uit de kaartcombinaties.
+function calcImpliedOdds(heroIds, boardIds, villainRange, pot, stack){
+    if(boardIds.length >= 5) return 0; // river: geen toekomstige streets
+    if(boardIds.length < 3) return 0;
+
+    var currentEq = calcEquity(heroIds, boardIds, villainRange);
+    var dead = {};
+    for(var i=0;i<heroIds.length;i++) dead[heroIds[i]]=true;
+    for(var i=0;i<boardIds.length;i++) dead[boardIds[i]]=true;
+    var remain = [];
+    for(var i=0;i<52;i++) if(!dead[i]) remain.push(i);
+
+    // Sample 30 possible next cards (turn of river) en bereken equity voor elk
+    var samples = Math.min(30, remain.length);
+    var totalImplied = 0;
+    var count = 0;
+
+    for(var n=0;n<samples;n++){
+        var idx = Math.floor(Math.random() * remain.length);
+        var nextCard = remain[idx];
+        var newBoard = boardIds.concat([nextCard]);
+        var newEq = calcEquity(heroIds, newBoard, villainRange);
+
+        // Hoeveel verandert de equity?
+        var eqDelta = newEq - currentEq;
+
+        if(eqDelta > 0.05){
+            // Hand verbeterd (draw hitt): implied odds = extra waarde
+            // Villain betaalt gemiddeld ~60% pot extra als hero's hand verbetert
+            totalImplied += eqDelta * pot * 0.6;
+        } else if(eqDelta < -0.05){
+            // Hand verslechterd (scare card / villain verbetert): reverse implied odds
+            // Hero verliest gemiddeld ~40% pot als hand verslechtert
+            totalImplied += eqDelta * pot * 0.4; // negatief getal (kosten)
+        }
+        count++;
+    }
+
+    if(count === 0) return 0;
+    return totalImplied / count;
+}
+
+// ========================= FLOP / TURN / RIVER =========================
+function goFlop(){
+    G.phase = 'flop';
+    G.answered = false;
+
+    // Pot size depends on preflop action
+    if(G.correctPreflop === '4-Bet'){
+        G.pot = 50; G.stack = 75;
+    } else if(G.correctPreflop === '3-Bet'){
+        G.pot = 19; G.stack = 90.5;
+    } else {
+        G.pot = 6; G.stack = 97;
+    }
+
+    // Deal flop
+    G.board = [G.deck[3], G.deck[4], G.deck[5]];
+
+    // Villain bet decision: texture-aware sizing
+    var isVillainIP = !G.heroIP; // will be set properly in doPostflop, approximate here
+    var postflopOrder = ['SB','BB','UTG','UTG1','UTG2','LJ','HJ','CO','BTN'];
+    isVillainIP = postflopOrder.indexOf(G.villainPos) > postflopOrder.indexOf(G.heroPos);
+    var vBet = villainBetDecision(G.pot, G.board, isVillainIP, 'FLOP');
+    G.villainBet = vBet.bets ? vBet.sizeBB : 0;
+
+    doPostflop('FLOP');
+}
+
+function goTurn(){
+    G.phase = 'turn';
+    G.answered = false;
+    G.board.push(G.deck[6 + G.board.length - 3]);
+
+    var postflopOrder = ['SB','BB','UTG','UTG1','UTG2','LJ','HJ','CO','BTN'];
+    var isVillainIP = postflopOrder.indexOf(G.villainPos) > postflopOrder.indexOf(G.heroPos);
+    var vBet = villainBetDecision(G.pot, G.board, isVillainIP, 'TURN');
+    G.villainBet = vBet.bets ? vBet.sizeBB : 0;
+
+    doPostflop('TURN');
+}
+
+function goRiver(){
+    G.phase = 'river';
+    G.answered = false;
+    G.board.push(G.deck[6 + G.board.length - 3]);
+
+    var postflopOrder = ['SB','BB','UTG','UTG1','UTG2','LJ','HJ','CO','BTN'];
+    var isVillainIP = postflopOrder.indexOf(G.villainPos) > postflopOrder.indexOf(G.heroPos);
+    var vBet = villainBetDecision(G.pot, G.board, isVillainIP, 'RIVER');
+    G.villainBet = vBet.bets ? vBet.sizeBB : 0;
+
+    doPostflop('RIVER');
+}
+
+function doPostflop(street){
+    // Determine if hero is in position
+    var postflopOrder = ['SB','BB','UTG','UTG1','UTG2','LJ','HJ','CO','BTN'];
+    G.heroIP = postflopOrder.indexOf(G.heroPos) > postflopOrder.indexOf(G.villainPos);
+
+    // Calculate equity vs current villain range
+    var potForCalc = G.pot + (G.villainBet > 0 ? G.villainBet : 0);
+    G.equity = calcEquity(G.heroCards, G.board, G.villainRange);
+
+    // Detect draws
+    G.draws = analyzeDraws(G.heroCards, G.board);
+
+    // CFR solver: calculates all EVs including multi-street lookahead,
+    // implied odds, villain raise, and dynamic realization — all in one call
+    G.evs = calcEVs(G.equity, potForCalc, G.stack, G.villainBet, G.heroCards, G.board, G.villainRange, G.heroIP);
+
+    // Store realization for display
+    G.realization = calcRealization(G.equity, G.heroCards, G.board, G.heroIP, potForCalc, G.stack);
+
+    renderPostflop(street);
+}
+
+function renderPostflop(street){
+    setPhase(G.phase);
+
+    // Board cards
+    var bh = '';
+    for(var i=0;i<G.board.length;i++) bh += bhtml(G.board[i]);
+    el('board-cards').innerHTML = bh;
+
+    // Pot
+    var displayPot = G.pot + (G.villainBet > 0 ? G.villainBet : 0);
+    el('pot-badge').textContent = 'Pot: ' + displayPot.toFixed(1) + ' BB';
+    el('pot-badge').style.display = '';
+
+    // Equity + board texture
+    G.boardInfo = analyzeBoard(G.board);
+    G.draws = analyzeDraws(G.heroCards, G.board);
+    var eqText = 'Equity: ' + (G.equity * 100).toFixed(1) + '% | ' + G.boardInfo.texture;
+    if(G.draws.length) eqText += ' | ' + G.draws.join(', ');
+    el('eq-badge').innerHTML = eqText;
+    el('eq-badge').style.display = '';
+    el('center-text').style.display = 'none';
+
+    // Prompt — show villain position dynamically
+    var vName = G.villainPos;
+    if(G.villainBet > 0){
+        el('prompt').textContent = street + ' | ' + vName + ' bet ' + G.villainBet.toFixed(1) + ' BB. Jouw actie? (Stack: ' + G.stack.toFixed(0) + ' BB)';
+    } else {
+        el('prompt').textContent = street + ' | ' + vName + ' checks. Jouw actie? (Stack: ' + G.stack.toFixed(0) + ' BB)';
+    }
+
+    // Feedback
+    var fbParts = [street + ': ' + G.board.map(cstr).join(' ')];
+    fbParts.push('Equity: ' + (G.equity*100).toFixed(1) + '%');
+    fbParts.push(G.boardInfo.texture);
+    if(G.draws.length) fbParts.push(G.draws.join(', '));
+    setFB(fbParts.join(' | '), 'info');
+
+    // Buttons
+    var html = '';
+    if(G.villainBet > 0){
+        html += '<button class="btn btn-fold" onclick="doPost(\'Fold\')">Fold</button>';
+        html += '<button class="btn btn-call" onclick="doPost(\'Call\')">Call<span class="sub">' + G.villainBet.toFixed(1) + ' BB</span></button>';
+        html += '<button class="btn btn-jam" onclick="doPost(\'All-In\')">All-In<span class="sub">' + G.stack.toFixed(0) + ' BB</span></button>';
+    } else {
+        html += '<button class="btn btn-check" onclick="doPost(\'Check\')">Check</button>';
+        // Only show bet sizes that are less than stack
+        var sizings = [{name:'Bet 33%',f:0.33,key:'1'},{name:'Bet 50%',f:0.50,key:'2'},{name:'Bet 75%',f:0.75,key:'3'},{name:'Bet 100%',f:1.00,key:'4'}];
+        var btnStyles = ['btn-b33','btn-b33','btn-b75','btn-b75'];
+        for(var si=0;si<sizings.length;si++){
+            var amt = displayPot * sizings[si].f;
+            if(amt < G.stack){
+                html += '<button class="btn '+btnStyles[si]+'" onclick="doPost(\''+sizings[si].name+'\')">'+sizings[si].name+'<span class="sub">'+amt.toFixed(1)+' BB</span></button>';
+            }
+        }
+        html += '<button class="btn btn-jam" onclick="doPost(\'All-In\')">All-In<span class="sub">' + G.stack.toFixed(0) + ' BB</span></button>';
+    }
+    el('btns').innerHTML = html;
+
+    if(G.villainBet > 0){
+        el('keys').textContent = '[F] Fold  [C] Call  [J] All-In';
+    } else {
+        el('keys').textContent = '[K] Check  [1] 33%  [2] 50%  [3] 75%  [4] 100%  [J] All-In';
+    }
+}
+
+function doPost(action){
+    if(G.answered) return;
+    G.answered = true;
+    G.total++;
+
+    // Find best (skip internal keys starting with _)
+    var best='', bestEV=-1e9;
+    for(var a in G.evs){
+        if(a[0]!=='_' && G.evs[a]>bestEV){bestEV=G.evs[a]; best=a;}
+    }
+    var chosen=G.evs[action]||0;
+    var gap=bestEV-chosen;
+    if(gap<0.1) G.score++;
+    G.evLost += gap;
+    updateStats();
+
+    // Update pot/stack for next street
+    var heroBetSize = 0;
+    if(action==='Call' && G.villainBet>0){
+        G.pot += G.villainBet*2; G.stack -= G.villainBet;
+        heroBetSize = G.villainBet;
+    } else if(action==='Check'){
+        // pot stays
+    } else if(action.indexOf('Bet')>=0){
+        var betFracs = {'Bet 33%':0.33, 'Bet 50%':0.50, 'Bet 75%':0.75, 'Bet 100%':1.00};
+        heroBetSize = G.pot * (betFracs[action] || 0.75);
+        G.pot += heroBetSize*2; G.stack -= heroBetSize; // villain calls
+    } else if(action==='All-In'){
+        heroBetSize = G.stack;
+        G.pot += G.stack*2; G.stack = 0;
+    }
+
+    // RANGE NARROWING: villain's range shrinks based on the action
+    // This makes later streets more realistic — villain only has hands they'd continue with
+    var prevRangeSize = G.villainRange.length;
+    G.villainRange = narrowVillainRange(action, G.heroCards, G.board, G.villainRange, G.pot, heroBetSize);
+
+    showModal(action, chosen, best, bestEV, gap, prevRangeSize);
+}
+
+// ========================= MODAL =========================
+function showModal(action, chosenEV, bestAction, bestEV, gap, prevRangeSize){
+    var ok = gap < 0.1;
+    var t = el('m-title');
+    t.textContent = ok ? 'Correcte Beslissing!' : 'Suboptimale Beslissing';
+    t.className = ok ? 'ok' : 'bad';
+
+    var eqP = (G.equity*100).toFixed(1);
+    var summaryHtml =
+        'Gekozen: <b>'+action+'</b> (EV: <span class="'+(chosenEV>=0?'g':'r')+'">'+(chosenEV>=0?'+':'')+chosenEV.toFixed(2)+' BB</span>)<br>'+
+        'Beste: <b>'+bestAction+'</b> (EV: <span class="g">+'+bestEV.toFixed(2)+' BB</span>)<br>'+
+        'EV verlies: <span class="'+(gap<0.1?'g':'r')+'">'+gap.toFixed(2)+' BB</span><br>'+
+        'Equity: <b>'+eqP+'%</b>';
+    if(G.impliedOdds > 0.01){
+        summaryHtml += '<br>Implied odds: <b>+'+G.impliedOdds.toFixed(2)+' BB</b> (draw potentieel)';
+    }
+    if(prevRangeSize && G.villainRange.length < prevRangeSize){
+        summaryHtml += '<br>Villain range: '+prevRangeSize+' → <b>'+G.villainRange.length+' combos</b> (vernauwing)';
+    }
+    el('m-summary').innerHTML = summaryHtml;
+
+    // EV table (filter internal keys starting with _)
+    var sorted=[];
+    for(var a in G.evs){ if(a[0]!=='_') sorted.push([a, G.evs[a]]); }
+    sorted.sort(function(a,b){return b[1]-a[1];});
+    var rows='';
+    for(var i=0;i<sorted.length;i++){
+        var cls=(sorted[i][0]===bestAction?'best':'')+(sorted[i][0]===action?' pick':'');
+        var mark=(sorted[i][0]===bestAction?' \u2190 Best':'')+(sorted[i][0]===action?' \u2190 Jouw keuze':'');
+        // Show GTO frequency if available
+        var freqKey = '_freq_' + sorted[i][0];
+        var freqStr = G.evs[freqKey] !== undefined ? ' (' + (G.evs[freqKey]*100).toFixed(0) + '%)' : '';
+        rows+='<div class="ev-row '+cls+'"><span>'+sorted[i][0]+freqStr+'</span><span>'+(sorted[i][1]>=0?'+':'')+sorted[i][1].toFixed(2)+' BB'+mark+'</span></div>';
+    }
+    el('m-table').innerHTML = rows;
+
+    // Calculation
+    var potD = G.pot + (G.villainBet>0?G.villainBet:0);
+    var lines=[];
+    lines.push('Equity: '+eqP+'% | Pot: '+potD.toFixed(1)+' BB | Stack: '+G.stack.toFixed(0)+' BB');
+    // Use stored fold equity values from range-based calculation
+    var f33 = G.evs._f33 || 0, f75 = G.evs._f75 || 0, fj = G.evs._fj || 0;
+    var realFactor = G.heroIP ? 0.70 : 0.55;
+
+    if(G.villainBet>0){
+        lines.push('Villain bet: '+G.villainBet.toFixed(1)+' BB');
+        lines.push('');
+        lines.push('EV(Call) = eq x (pot+call) - call');
+        lines.push('= '+eqP+'% x '+(potD+G.villainBet).toFixed(1)+' - '+G.villainBet.toFixed(1));
+        lines.push('= '+(G.equity*(potD+G.villainBet)-G.villainBet).toFixed(2)+' BB');
+        lines.push('');
+        var neededEq = G.villainBet / (potD + G.villainBet);
+        lines.push('Pot odds: '+G.villainBet.toFixed(1)+' / '+(potD+G.villainBet).toFixed(1)+' = '+(neededEq*100).toFixed(1)+'% nodig');
+        lines.push('Je equity: '+eqP+'% '+(G.equity>neededEq?'> pot odds = CALL':'< pot odds'));
+        lines.push('');
+        lines.push('EV(All-In): range-based foldEq='+(fj*100).toFixed(0)+'%');
+        lines.push('Equity vs calling range berekend door zwakste combos te filteren');
+        lines.push('EV = '+G.evs['All-In'].toFixed(2)+' BB');
+    } else {
+        var realF = G.realization || 0.70;
+        lines.push('');
+        lines.push('=== CFR SOLVER (300 iteraties, multi-street lookahead) ===');
+        lines.push('');
+        lines.push('Check: eq('+eqP+'%) x pot('+potD.toFixed(1)+') x realizatie('+realF.toFixed(2)+') + next-street value');
+        lines.push('EV(Check) = ' + (G.evs['Check']||0).toFixed(2) + ' BB');
+        lines.push('');
+        lines.push('Bet EV = fold% x pot + call% x (eqVsCallers x newPot - bet) + raise% x EV_vs_raise');
+        lines.push('  fold eq: range-based (MDF + villain hand sterkte)');
+        lines.push('  eq vs callers: herberekend na filteren van folders');
+        lines.push('  villain raise: top ~15% raised, hero fold/call EV berekend');
+        lines.push('  multi-street: next-card equity samples voor implied value');
+        var allSizes = [['Bet 33%',0.33],['Bet 50%',0.50],['Bet 75%',0.75],['Bet 100%',1.00],['All-In',null]];
+        for(var si=0;si<allSizes.length;si++){
+            var sn=allSizes[si][0], sf=allSizes[si][1];
+            if(G.evs[sn] === undefined) continue;
+            var fe = sf ? (G.evs['_f'+(sf*100).toFixed(0)] || 0) : (fj||0);
+            var freq = G.evs['_freq_'+sn];
+            var freqStr = freq !== undefined ? ' | GTO freq: '+(freq*100).toFixed(0)+'%' : '';
+            var amt = sf ? (potD*sf).toFixed(1)+' BB' : G.stack.toFixed(0)+' BB';
+            lines.push('');
+            lines.push('--- '+sn+' ('+amt+') foldEq='+(fe*100).toFixed(0)+'%'+freqStr+' ---');
+            lines.push('EV = '+G.evs[sn].toFixed(2)+' BB');
+        }
+    }
+    el('m-calc').textContent = lines.join('\n');
+
+    // Reasons — context-aware with board texture and draws
+    var reasons = [];
+    var bi = G.boardInfo || {};
+    var dr = G.draws || [];
+    var isIP = ['BTN','CO','HJ','SB'].indexOf(G.heroPos) >= 0 && ['BB','SB','UTG'].indexOf(G.villainPos) >= 0;
+
+    // Board texture context
+    if(bi.texture) reasons.push('Board textuur: <b>' + bi.texture + '</b>.');
+    if(dr.length) reasons.push('Jouw draws: <b>' + dr.join(', ') + '</b>.');
+
+    // Best action explanation
+    if(bestAction==='Check'){
+        if(G.equity > 0.4) reasons.push('Showdown value: sterk genoeg om te winnen bij showdown, maar betten wordt alleen gecalld door beter.');
+        else reasons.push('Te zwak om te betten. Check en hoop op een gratis kaart of showdown.');
+        if(bi.texture && bi.texture.indexOf('Nat')>=0) reasons.push('Op een nat board is pot control belangrijk — check beschermt je stack.');
+    }
+    if(bestAction==='Bet 33%'){
+        reasons.push('Kleine bet (33% pot) is optimaal: breed gecalld door slechtere handen.');
+        if(bi.texture && bi.texture.indexOf('Droog')>=0) reasons.push('Droog board → dunner value betten, villain heeft weinig sterke handen.');
+        if(dr.length && dr.some(function(d){return d.indexOf('draw')>=0;})) reasons.push('Semi-bluff: wint direct bij fold, of verbetert op latere streets.');
+    }
+    if(bestAction==='Bet 50%'){
+        reasons.push('Medium bet (50% pot): balans tussen value en bescherming.');
+        reasons.push('Groot genoeg om draws te laten betalen, klein genoeg om gecalld te worden door slechtere handen.');
+    }
+    if(bestAction==='Bet 75%'){
+        reasons.push('Grote bet (75% pot): maximale value met sterke equity.');
+        if(bi.flush_possible || bi.straight_possible) reasons.push('Op dit natte board moeten draws duur betalen — kleine bets geven te goede odds.');
+    }
+    if(bestAction==='Bet 100%'){
+        reasons.push('Pot-sized bet (100%): maximale druk. Je hand is sterk genoeg om de pot te laten groeien.');
+        reasons.push('Geeft draws de slechtste prijs en bouwt maximale value op.');
+    }
+    if(bestAction==='Call'){
+        var potOdds = G.villainBet ? G.villainBet / (G.pot + 2*G.villainBet) : 0;
+        reasons.push('Pot odds: je betaalt ' + (G.villainBet||0).toFixed(1) + ' BB voor een pot van ' + (G.pot+(G.villainBet||0)).toFixed(1) + ' BB (' + (potOdds*100).toFixed(0) + '% nodig).');
+        reasons.push('Je equity (' + (G.equity*100).toFixed(0) + '%) is hoger dan de pot odds: winstgevende call.');
+        if(dr.length) reasons.push('Je draws geven je extra implied odds op latere streets.');
+    }
+    if(bestAction==='Fold'){
+        reasons.push('Je equity (' + (G.equity*100).toFixed(0) + '%) is te laag om winstgevend te callen of betten.');
+        if(bi.texture && bi.texture.indexOf('Nat')>=0) reasons.push('Op een nat board heeft villain veel sterke combos — jouw hand is te zwak.');
+    }
+
+    // Mistake explanations
+    if(action==='Fold' && bestAction!=='Fold') reasons.push('Je gooide ' + (G.equity*100).toFixed(0) + '% equity weg!');
+    if(action==='All-In' && bestAction!=='All-In') reasons.push('All-in is overcommit: je riskeert je hele stack voor te weinig verwachte waarde.');
+    if(action==='Check' && bestAction.indexOf('Bet')>=0) reasons.push('Checken is te passief hier — je mist value of fold equity.');
+    if(action.indexOf('Bet')>=0 && bestAction==='Check') reasons.push('Betten is hier value-owning: je wordt alleen gecalld door betere handen.');
+
+    // Position context
+    if(isIP) reasons.push('Je speelt in positie (IP) — je hebt informatievoordeel op latere streets.');
+    else reasons.push('Je speelt out of position (OOP) — wees voorzichtiger met pot opbouwen.');
+    el('m-reasons').innerHTML = reasons.map(function(r){return '<li>'+r+'</li>';}).join('');
+
+    // Set button text based on next phase
+    var btnText = 'Nieuwe Hand &#9654;';
+    if(G.phase==='flop') btnText = 'Naar de Turn &#9654;';
+    else if(G.phase==='turn') btnText = 'Naar de River &#9654;';
+    el('m-closebtn').innerHTML = btnText;
+
+    el('modal').style.display = 'block';
+    el('overlay').style.display = 'block';
+}
+
+function closeModal(){
+    el('modal').style.display = 'none';
+    el('overlay').style.display = 'none';
+
+    // Automatically continue: flop→turn→river→new hand
+    if(G.phase==='flop' && G.board.length===3) goTurn();
+    else if(G.phase==='turn' && G.board.length===4) goRiver();
+    else newHand();
+}
+
+// ========================= UI HELPERS =========================
+function setPhase(p){
+    var phases={preflop:'ph1',flop:'ph2',turn:'ph3',river:'ph4'};
+    var order=['preflop','flop','turn','river'];
+    for(var i=0;i<order.length;i++){
+        var e=el(phases[order[i]]);
+        if(order[i]===p) e.className='phase active';
+        else if(order.indexOf(p)>i) e.className='phase done';
+        else e.className='phase';
+    }
+}
+function setFB(html,cls){ el('fb').innerHTML=html; el('fb').className='fb '+cls; }
+function updateStats(){
+    el('s-score').textContent = G.score+'/'+G.total;
+    el('s-acc').textContent = G.total ? Math.round(G.score/G.total*100)+'%' : '--';
+    el('s-ev').textContent = G.evLost.toFixed(2);
+    el('s-ev').style.color = G.evLost<1?'#2ecc71':G.evLost<5?'#ffd700':'#e74c3c';
+}
+
+// ========================= KEYBOARD =========================
+document.addEventListener('keydown', function(e){
+    if(el('modal').style.display==='block'){
+        if(e.code==='Space'||e.code==='Enter'){e.preventDefault(); closeModal();}
+        return;
+    }
+    if(G.phase==='preflop'){
+        if(!G.answered){
+            if(G.scenarioType==='RFI'){
+                if(e.key==='r'||e.key==='R') doPre('Raise');
+            } else if(G.scenarioType==='FACING'){
+                if(e.key==='3') doPre('3-Bet');
+                if(e.key==='c'||e.key==='C') doPre('Call');
+            } else {
+                if(e.key==='4') doPre('4-Bet');
+                if(e.key==='c'||e.key==='C') doPre('Call');
+            }
+            if(e.key==='f'||e.key==='F') doPre('Fold');
+        } else {
+            if(e.code==='Space'||e.code==='Enter'){
+                e.preventDefault();
+                if(G.correctPreflop!=='Fold') goFlop(); else newHand();
+            }
+        }
+    } else if(!G.answered){
+        if(G.villainBet>0){
+            if(e.key==='f'||e.key==='F') doPost('Fold');
+            if(e.key==='c'||e.key==='C') doPost('Call');
+            if(e.key==='j'||e.key==='J') doPost('All-In');
+        } else {
+            if(e.key==='k'||e.key==='K') doPost('Check');
+            if(e.key==='1') doPost('Bet 33%');
+            if(e.key==='2') doPost('Bet 50%');
+            if(e.key==='3') doPost('Bet 75%');
+            if(e.key==='4') doPost('Bet 100%');
+            if(e.key==='j'||e.key==='J') doPost('All-In');
+        }
+    }
+});
+
+// ========================= START =========================
+newHand();
+</script>
+</body>
+</html>

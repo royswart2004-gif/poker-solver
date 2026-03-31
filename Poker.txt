@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTO Preflop Trainer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --felt: #0e7a3a;
+            --felt-light: #129e4c;
+            --felt-edge: #074d22;
+            --felt-mid: #0c6830;
+            --rail: #1e120a;
+            --rail-light: #2e1c0e;
+            --gold: #d4a943;
+            --gold-light: #f0c96a;
+            --hero-blue: #1a6ec7;
+            --hero-glow: rgba(26,110,199,0.7);
+            --villain-red: #c0281f;
+            --villain-glow: rgba(192,40,31,0.7);
+            --card-bg: #faf7f2;
+            --red: #cc2200;
+            --black: #111827;
+            --text: #e8e0d0;
+            --gold: #d4a943;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Nunito', sans-serif;
+            background: #0a0c10;
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background-image:
+                radial-gradient(ellipse at 20% 20%, rgba(14,80,35,0.25) 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 80%, rgba(10,25,45,0.35) 0%, transparent 55%);
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 24px;
+            background: rgba(4,6,10,0.95);
+            border-bottom: 1px solid rgba(212,169,67,0.18);
+            z-index: 200;
+        }
+        .logo {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--gold);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+        .logo span { color: #fff; font-weight: 400; }
+        .scoreboard { display: flex; gap: 12px; align-items: center; }
+        .score-item {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 8px;
+            padding: 4px 12px;
+            text-align: center;
+            font-size: 0.8em;
+        }
+        .score-item .label { color: rgba(255,255,255,0.38); font-size: 0.75em; text-transform: uppercase; letter-spacing: 1px; }
+        .score-item .value { font-family: 'Rajdhani', sans-serif; font-size: 1.45em; font-weight: 700; color: var(--gold); line-height: 1; }
+        .accuracy-bar { width: 65px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-top: 3px; }
+        .accuracy-fill { height: 100%; background: linear-gradient(90deg, #e74c3c, #f39c12, #2ecc71); border-radius: 2px; transition: width 0.5s ease; width: 0%; }
+
+        /* ===== TABLE AREA — fills available vertical space ===== */
+        .table-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 12px 6px;
+            min-height: 0;
+        }
+
+        .table-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 960px;
+            /* height driven by available space */
+            height: 100%;
+            max-height: 520px;
+            /* maintain 2:1 ratio via aspect ratio trick */
+            aspect-ratio: 2 / 1;
+        }
+
+        /* ===== POKER TABLE ===== */
+        .poker-table { position: absolute; inset: 0; }
+
+        .rail-outer {
+            position: absolute; inset: 0;
+            border-radius: 50%;
+            background: linear-gradient(160deg, #3a2210 0%, #1c0e06 40%, #2e1a0a 70%, #3a2210 100%);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.85), 0 0 0 2px rgba(90,55,20,0.2), inset 0 2px 3px rgba(255,255,255,0.04);
+        }
+        .rail-inner {
+            position: absolute; inset: 14px;
+            border-radius: 50%;
+            background: linear-gradient(160deg, #160b04, #241408, #160b04);
+            box-shadow: inset 0 5px 14px rgba(0,0,0,0.7);
+        }
+        .rail-trim {
+            position: absolute; inset: 12px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            background: linear-gradient(#160b04, #160b04) padding-box,
+                        linear-gradient(160deg, rgba(200,145,40,0.55), rgba(60,35,10,0.15), rgba(210,155,50,0.5)) border-box;
+        }
+        .felt-surface {
+            position: absolute; inset: 22px;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at 38% 38%,
+                var(--felt-light) 0%,
+                var(--felt) 40%,
+                var(--felt-mid) 70%,
+                var(--felt-edge) 100%);
+            box-shadow: inset 0 0 80px rgba(0,0,0,0.4), inset 0 0 25px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .felt-surface::before {
+            content: '';
+            position: absolute; inset: 0; border-radius: 50%;
+            background-image:
+                repeating-linear-gradient(0deg, rgba(255,255,255,0.01) 0px, transparent 1px, transparent 3px),
+                repeating-linear-gradient(90deg, rgba(255,255,255,0.01) 0px, transparent 1px, transparent 3px);
+            pointer-events: none;
+        }
+
+        /* ===== CENTER INFO ===== */
+        .center-info {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            width: clamp(140px, 24%, 260px);
+        }
+        .gto-watermark {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(0.85em, 1.8vw, 1.4em);
+            font-weight: 700;
+            color: rgba(255,255,255,0.05);
+            letter-spacing: 7px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        .scenario-card {
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            border-radius: 10px;
+            padding: 8px 12px 10px;
+            border: 1px solid rgba(255,255,255,0.07);
+            box-shadow: 0 4px 18px rgba(0,0,0,0.55);
+        }
+        .scenario-card.rfi-mode    { border-color: rgba(46,204,113,0.35);  background: rgba(0,28,10,0.7); }
+        .scenario-card.facing-mode { border-color: rgba(230,126,34,0.45);  background: rgba(38,14,0,0.7); }
+        .scenario-card.vs3bet-mode { border-color: rgba(155,89,182,0.45);  background: rgba(28,0,38,0.7); }
+
+        .scenario-type-badge {
+            display: inline-block;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.6em; font-weight: 700;
+            letter-spacing: 2px; text-transform: uppercase;
+            padding: 2px 7px; border-radius: 20px; margin-bottom: 5px;
+        }
+        .rfi-mode .scenario-type-badge    { background: rgba(46,204,113,0.18); color: #5ddd8a; border: 1px solid rgba(46,204,113,0.3); }
+        .facing-mode .scenario-type-badge { background: rgba(230,126,34,0.18); color: #f0a050; border: 1px solid rgba(230,126,34,0.32); }
+        .vs3bet-mode .scenario-type-badge { background: rgba(155,89,182,0.18); color: #c585f0; border: 1px solid rgba(155,89,182,0.32); }
+
+        .scenario-action-line {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(0.65em, 1.2vw, 0.92em);
+            font-weight: 600; line-height: 1.3;
+            color: rgba(255,255,255,0.85);
+        }
+        .scenario-action-line .pos-name { font-weight: 800; font-size: 1.1em; }
+        .rfi-mode    .pos-name { color: #5ddd8a; }
+        .facing-mode .pos-name { color: #f0a050; }
+        .vs3bet-mode .pos-name { color: #c585f0; }
+        .scenario-action-verb { display: block; margin-top: 2px; font-size: 0.82em; color: rgba(255,255,255,0.42); letter-spacing: 0.4px; }
+
+        /* ===== 3D CHIP STACKS ===== */
+        .chip-stack {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .chip-stack.visible { opacity: 1; }
+
+        /* The SVG canvas that holds the 3D chip tower */
+        .chip-svg {
+            display: block;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.7));
+        }
+
+        .chip-label {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.68em; font-weight: 700;
+            letter-spacing: 0.5px;
+            background: rgba(0,0,0,0.65);
+            padding: 1px 6px;
+            border-radius: 6px;
+            white-space: nowrap;
+            margin-top: 1px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .chip-label.raise-label { color: #f5b055; }
+        .chip-label.bet3-label  { color: #c585f0; }
+
+        /* Chip stack positions */
+        #chips-UTG  { left: 18%; top: 50%; transform: translate(-50%,-50%); }
+        #chips-UTG1 { left: 26%; top: 26%; transform: translate(-50%,-50%); }
+        #chips-UTG2 { left: 40%; top: 18%; transform: translate(-50%,-50%); }
+        #chips-LJ   { left: 60%; top: 18%; transform: translate(-50%,-50%); }
+        #chips-HJ   { left: 74%; top: 26%; transform: translate(-50%,-50%); }
+        #chips-CO   { left: 82%; top: 50%; transform: translate(-50%,-50%); }
+        #chips-BTN  { left: 74%; top: 74%; transform: translate(-50%,-50%); }
+        #chips-SB   { left: 60%; top: 82%; transform: translate(-50%,-50%); }
+        #chips-BB   { left: 40%; top: 82%; transform: translate(-50%,-50%); }
+        #chips-MP   { left: 32%; top: 22%; transform: translate(-50%,-50%); }
+
+        /* ===== SEATS ===== */
+        .seat {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+        .seat-cards { display: flex; gap: 4px; align-items: flex-end; position: relative; min-height: 40px; }
+
+        /* Base card */
+        .card {
+            width: 30px; height: 42px;
+            border-radius: 4px;
+            background: var(--card-bg);
+            border: 1px solid rgba(0,0,0,0.15);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1em; font-weight: 900;
+            font-family: 'Rajdhani', sans-serif;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+        }
+        .card.red   { color: var(--red); }
+        .card.black { color: var(--black); }
+        .card-back {
+            background: linear-gradient(145deg, #8B0000 0%, #560000 50%, #8B0000 100%);
+            position: relative; overflow: hidden;
+        }
+        .card-back::before {
+            content: ''; position: absolute; inset: 2px;
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 3px;
+            background: repeating-linear-gradient(45deg,
+                rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, transparent 2px, transparent 6px);
+        }
+
+        /* Hero cards — bigger, prominent */
+        .seat.hero .seat-cards { gap: 6px; }
+        .seat.hero .card {
+            width: 48px; height: 68px;
+            border-radius: 6px;
+            font-size: 1.55em;   /* << bigger text */
+            font-weight: 900;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.7), 0 0 14px rgba(26,110,199,0.35);
+        }
+
+        /* Villain cards */
+        .seat.villain .card { width: 34px; height: 48px; font-size: 1.1em; }
+
+        /* Nameplate */
+        .nameplate {
+            background: rgba(12,15,22,0.92);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 3px 11px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(0.6em, 1.15vw, 0.82em);
+            font-weight: 600; letter-spacing: 1px;
+            color: rgba(190,185,175,0.72);
+            white-space: nowrap;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 7px rgba(0,0,0,0.4);
+        }
+        .seat.hero .nameplate {
+            background: linear-gradient(150deg, rgba(18,65,148,0.95), rgba(8,40,105,0.95));
+            border-color: rgba(52,152,219,0.55);
+            color: #fff;
+            box-shadow: 0 0 16px var(--hero-glow), 0 2px 7px rgba(0,0,0,0.4);
+            animation: pulse-hero 2.2s ease infinite;
+        }
+        .seat.villain .nameplate {
+            background: linear-gradient(150deg, rgba(125,22,18,0.95), rgba(75,10,8,0.95));
+            border-color: rgba(215,55,45,0.55);
+            color: #fff;
+            box-shadow: 0 0 16px var(--villain-glow), 0 2px 7px rgba(0,0,0,0.4);
+            animation: pulse-villain 2.2s ease infinite;
+        }
+
+        /* Villain action badge */
+        .villain-action-badge {
+            display: none;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(0.58em, 1vw, 0.74em);
+            font-weight: 700; letter-spacing: 0.8px;
+            text-transform: uppercase;
+            padding: 2px 9px; border-radius: 10px;
+            white-space: nowrap; margin-top: 1px;
+        }
+        .seat.villain .villain-action-badge { display: block; }
+        .villain-action-badge.badge-raise { background: rgba(230,126,34,0.22); color: #f5a84a; border: 1px solid rgba(230,126,34,0.42); }
+        .villain-action-badge.badge-3bet  { background: rgba(155,89,182,0.22); color: #d08af5; border: 1px solid rgba(155,89,182,0.42); }
+
+        /* Dealer button */
+        .dealer-btn {
+            position: absolute; top: -5px; right: -18px;
+            width: 18px; height: 18px;
+            background: radial-gradient(circle at 35% 35%, #fff 0%, #ccc 100%);
+            border: 2px solid #aaa; border-radius: 50%;
+            font-family: 'Rajdhani', sans-serif; font-size: 0.55em; font-weight: 700; color: #333;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5); opacity: 0; z-index: 20;
+        }
+
+        /* Chips */
+        .chips { font-size: 1.1em; opacity: 0; transition: opacity 0.3s; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+        .seat.villain .chips { opacity: 1; }
+
+        /* YOU badge */
+        .you-badge {
+            position: absolute; bottom: -15px;
+            background: var(--gold); color: #111;
+            font-size: 0.55em; font-weight: 800; letter-spacing: 2px;
+            padding: 2px 6px; border-radius: 8px;
+            opacity: 0; transition: opacity 0.3s; white-space: nowrap;
+        }
+        .seat.hero .you-badge { opacity: 1; }
+
+        /* 9-max seat positions — shifted slightly inward to give table more breathing room */
+        #seat-UTG  { left: 7%;  top: 50%; }
+        #seat-UTG1 { left: 17%; top: 14%; }
+        #seat-UTG2 { left: 35%; top: 4%;  }
+        #seat-LJ   { left: 65%; top: 4%;  }
+        #seat-HJ   { left: 83%; top: 14%; }
+        #seat-CO   { left: 93%; top: 50%; }
+        #seat-BTN  { left: 83%; top: 86%; }
+        #seat-SB   { left: 65%; top: 96%; }
+        #seat-BB   { left: 35%; top: 96%; }
+        #seat-MP   { left: 26%; top: 8%;  }
+
+        /* ===== ACTION PANEL — sits below table, never overlaps ===== */
+        .action-panel {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 20px 12px;
+            background: rgba(3,5,9,0.97);
+            border-top: 1px solid rgba(212,169,67,0.14);
+            gap: 6px;
+        }
+
+        /* Hand display */
+        .hand-row {
+            display: flex; align-items: center; gap: 12px;
+        }
+        .hand-cards-visual { display: flex; gap: 5px; }
+        .hand-card-big {
+            width: 42px; height: 58px; border-radius: 6px;
+            background: var(--card-bg);
+            border: 1px solid rgba(0,0,0,0.12);
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.5em; font-weight: 900;   /* bigger text */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6), 0 0 8px rgba(26,110,199,0.18);
+        }
+        .hand-card-big.red   { color: var(--red); }
+        .hand-card-big.black { color: var(--black); }
+
+        .hand-info { display: flex; flex-direction: column; gap: 1px; }
+        .hand-notation {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(1em, 2vw, 1.5em); font-weight: 800;
+            color: var(--gold-light); letter-spacing: 1px; line-height: 1;
+        }
+        .hand-pos-label {
+            font-size: clamp(0.66em, 1.2vw, 0.85em);
+            color: rgba(255,255,255,0.42); letter-spacing: 0.8px;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .hand-pos-label span { color: #74b9ff; font-weight: 700; }
+
+        .feedback {
+            font-size: clamp(0.85em, 1.6vw, 1.05em); font-weight: 700;
+            min-height: 1.3em; text-align: center; letter-spacing: 0.5px;
+        }
+        .feedback.correct   { color: #2ecc71; }
+        .feedback.incorrect { color: #e74c3c; }
+        .feedback em { font-style: normal; text-decoration: underline; text-underline-offset: 3px; }
+
+        .buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+        .action-btn {
+            padding: 9px 20px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: clamp(0.85em, 1.4vw, 1em);
+            font-weight: 700; letter-spacing: 1.5px;
+            text-transform: uppercase; border: none; border-radius: 8px;
+            cursor: pointer; color: white;
+            transition: all 0.13s ease;
+            position: relative; overflow: hidden;
+            display: flex; flex-direction: column; align-items: center; gap: 0;
+        }
+        .action-btn .btn-sub {
+            font-size: 0.68em; letter-spacing: 0.5px; opacity: 0.72;
+            font-weight: 600; line-height: 1; margin-top: 1px;
+        }
+        .action-btn::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.1) 0%, transparent 50%);
+            border-radius: 8px;
+        }
+        .action-btn:hover { transform: translateY(-2px); filter: brightness(1.14); }
+        .action-btn:active { transform: translateY(1px); }
+
+        .btn-raise { background: linear-gradient(145deg, #e8821e, #c86a10); box-shadow: 0 4px 14px rgba(232,130,30,0.38); border: 1px solid rgba(255,160,60,0.3); }
+        .btn-3bet  { background: linear-gradient(145deg, #9b2feb, #7a1bc4); box-shadow: 0 4px 14px rgba(155,47,235,0.38); border: 1px solid rgba(190,100,255,0.3); }
+        .btn-4bet  { background: linear-gradient(145deg, #c0392b, #9e1f14); box-shadow: 0 4px 14px rgba(192,57,43,0.38); border: 1px solid rgba(240,80,60,0.3); }
+        .btn-call  { background: linear-gradient(145deg, #2980b9, #1a6698); box-shadow: 0 4px 14px rgba(41,128,185,0.35); border: 1px solid rgba(80,170,240,0.25); }
+        .btn-fold  { background: linear-gradient(145deg, #4a5568, #363d4e); box-shadow: 0 3px 10px rgba(74,85,104,0.22); border: 1px solid rgba(150,160,180,0.12); }
+        .btn-next  { background: linear-gradient(145deg, #27ae60, #1a8847); box-shadow: 0 4px 14px rgba(39,174,96,0.35); display: none; min-width: 170px; border: 1px solid rgba(60,220,110,0.25); }
+
+        .key-hints { display: flex; gap: 7px; opacity: 0.25; font-size: 0.64em; }
+        .key-hint { border: 1px solid currentColor; padding: 1px 4px; border-radius: 3px; letter-spacing: 1px; }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes dealCard {
+            from { transform: scale(0.45) translateY(-12px); opacity: 0; }
+            to   { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .card { animation: dealCard 0.26s ease forwards; }
+        .hand-card-big { animation: dealCard 0.26s ease forwards; }
+
+        @keyframes pulse-hero {
+            0%,100% { box-shadow: 0 0 14px var(--hero-glow), 0 2px 7px rgba(0,0,0,0.4); }
+            50%      { box-shadow: 0 0 26px var(--hero-glow), 0 2px 7px rgba(0,0,0,0.4); }
+        }
+        @keyframes pulse-villain {
+            0%,100% { box-shadow: 0 0 14px var(--villain-glow), 0 2px 7px rgba(0,0,0,0.4); }
+            50%      { box-shadow: 0 0 24px var(--villain-glow), 0 2px 7px rgba(0,0,0,0.4); }
+        }
+        @keyframes slideUp {
+            from { transform: translateY(7px); opacity: 0; }
+            to   { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.94); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes chipPop {
+            from { opacity: 0; transform: translate(-50%,-50%) scale(0.5) translateY(8px); }
+            to   { opacity: 1; transform: translate(-50%,-50%) scale(1)   translateY(0px); }
+        }
+        .chip-stack.visible { animation: chipPop 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards; }
+        .scenario-card { animation: fadeIn 0.28s ease forwards; }
+
+        .seat.hero.result-correct .seat-cards::after {
+            content: '✓'; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em; color: #2ecc71;
+            text-shadow: 0 0 10px rgba(46,204,113,0.9);
+            z-index: 10; animation: slideUp 0.2s ease;
+        }
+        .seat.hero.result-wrong .seat-cards::after {
+            content: '✗'; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em; color: #e74c3c;
+            text-shadow: 0 0 10px rgba(231,76,60,0.9);
+            z-index: 10; animation: slideUp 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="logo">GTO <span>Trainer</span></div>
+    <div class="scoreboard">
+        <div class="score-item">
+            <div class="label">Correct</div>
+            <div class="value" id="score">0</div>
+        </div>
+        <div class="score-item">
+            <div class="label">Totaal</div>
+            <div class="value" id="total">0</div>
+        </div>
+        <div class="score-item" style="min-width:90px">
+            <div class="label">Accuraat</div>
+            <div class="value" id="accuracy">—</div>
+            <div class="accuracy-bar"><div class="accuracy-fill" id="acc-fill"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- TABLE AREA -->
+<div class="table-area">
+<div class="table-wrapper">
+    <div class="poker-table">
+        <div class="rail-outer"></div>
+        <div class="rail-inner"></div>
+        <div class="felt-surface">
+            <div class="center-info">
+                <div class="gto-watermark">GTO Trainer</div>
+                <div class="scenario-card rfi-mode" id="scenario-card">
+                    <div class="scenario-type-badge" id="scenario-badge">RFI</div>
+                    <div class="scenario-action-line" id="scenario-action-line">
+                        <span class="pos-name" id="scenario-pos">—</span>
+                        <span class="scenario-action-verb" id="scenario-verb">Laden...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chip stacks — one per position, shown/hidden by JS -->
+            <div class="chip-stack" id="chips-UTG"></div>
+            <div class="chip-stack" id="chips-UTG1"></div>
+            <div class="chip-stack" id="chips-UTG2"></div>
+            <div class="chip-stack" id="chips-LJ"></div>
+            <div class="chip-stack" id="chips-HJ"></div>
+            <div class="chip-stack" id="chips-CO"></div>
+            <div class="chip-stack" id="chips-BTN"></div>
+            <div class="chip-stack" id="chips-SB"></div>
+            <div class="chip-stack" id="chips-BB"></div>
+        </div>
+        <div class="rail-trim"></div>
+
+        <!-- Seats -->
+        <div id="seat-UTG" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">UTG</div>
+            <div class="villain-action-badge" id="vbadge-UTG"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-UTG1" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">UTG+1</div>
+            <div class="villain-action-badge" id="vbadge-UTG1"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-UTG2" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">UTG+2</div>
+            <div class="villain-action-badge" id="vbadge-UTG2"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-LJ" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">LJ</div>
+            <div class="villain-action-badge" id="vbadge-LJ"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-HJ" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">HJ</div>
+            <div class="villain-action-badge" id="vbadge-HJ"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-CO" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">CO</div>
+            <div class="villain-action-badge" id="vbadge-CO"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-BTN" class="seat">
+            <div class="dealer-btn" id="dealer-btn">D</div>
+            <div class="seat-cards"></div>
+            <div class="nameplate">BTN</div>
+            <div class="villain-action-badge" id="vbadge-BTN"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-SB" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">SB</div>
+            <div class="villain-action-badge" id="vbadge-SB"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+        <div id="seat-BB" class="seat">
+            <div class="seat-cards"></div>
+            <div class="nameplate">BB</div>
+            <div class="villain-action-badge" id="vbadge-BB"></div>
+            <div class="chips">🪙</div>
+            <div class="you-badge">JIJ</div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- ACTION PANEL -->
+<div class="action-panel">
+    <div class="hand-row">
+        <div class="hand-cards-visual" id="hand-cards-visual">
+            <div class="hand-card-big black" id="hc1" style="animation-delay:0s">—</div>
+            <div class="hand-card-big black" id="hc2" style="animation-delay:0.08s">—</div>
+        </div>
+        <div class="hand-info">
+            <div class="hand-notation" id="hand-notation">—</div>
+            <div class="hand-pos-label">Jij speelt als <span id="pos-label">—</span></div>
+        </div>
+    </div>
+    <div class="feedback" id="feedback"></div>
+    <div class="buttons" id="action-buttons">
+        <button class="action-btn btn-raise" id="btn-raise" onclick="checkAction('Raise')">
+            Raise<span class="btn-sub">Open · 2.5 BB</span>
+        </button>
+        <button class="action-btn btn-3bet"  id="btn-3bet"  onclick="checkAction('3-Bet')">
+            3-Bet<span class="btn-sub">Re-raise · ~9 BB</span>
+        </button>
+        <button class="action-btn btn-4bet"  id="btn-4bet"  onclick="checkAction('4-Bet')">
+            4-Bet<span class="btn-sub">Re-raise · ~25 BB</span>
+        </button>
+        <button class="action-btn btn-call"  id="btn-call"  onclick="checkAction('Call')">
+            Call<span class="btn-sub">Meegaan</span>
+        </button>
+        <button class="action-btn btn-fold"  id="btn-fold"  onclick="checkAction('Fold')">
+            Fold<span class="btn-sub">Weggooien</span>
+        </button>
+        <button class="action-btn btn-next"  id="next-btn"  onclick="dealHand()">Volgende Hand ▶</button>
+    </div>
+    <div class="key-hints">
+        <span class="key-hint">R</span> Raise &nbsp;
+        <span class="key-hint">3</span> 3-Bet &nbsp;
+        <span class="key-hint">4</span> 4-Bet &nbsp;
+        <span class="key-hint">C</span> Call &nbsp;
+        <span class="key-hint">F</span> Fold &nbsp;
+        <span class="key-hint">Space</span> Volgende
+    </div>
+</div>
+
+<script>
+// ===================== DATA — POKERCOACHING.COM PREFLOP CHARTS (pagina 3-14) =====================
+const pokerRanges = {
+
+    // ════════════════════════════════════════════════════════
+    // RAISE FIRST IN (RFI) — pagina 3
+    // Alle handen exact gelezen van de gekleurde grid-cellen
+    // ════════════════════════════════════════════════════════
+
+    // UTG — 134/1326 (10.1%)
+    // Pairs: AA-77
+    // Suited: AKs-ATs, KQs-KTs, QJs, JTs, T9s, 98s, A5s, A4s, A3s, A2s
+    // Offsuit: AKo, AQo
+    "RFI_UTG": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, " +
+        "AKs, AQs, AJs, ATs, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, " +
+        "QJs, JTs, T9s, 98s, " +
+        "AKo, AQo"
+    },
+
+    // UTG+1 — 190/1326 (14.3%)
+    // Pairs: AA-55
+    // Suited: AKs-A9s, A5s-A2s, KQs-KTs, QJs-QTs, JTs, T9s, 98s, 87s
+    // Offsuit: AKo, AQo, AJo, KQo
+    "RFI_UTG1": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, " +
+        "AKs, AQs, AJs, ATs, A9s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, " +
+        "QJs, QTs, JTs, T9s, 98s, 87s, " +
+        "AKo, AQo, AJo, KQo"
+    },
+
+    // UTG+2 — 208/1326 (15.7%)
+    // Pairs: AA-44
+    // Suited: AKs-A8s, A5s-A2s, KQs-K9s, QJs-QTs, JTs, J9s, T9s, 98s, 87s, 76s
+    // Offsuit: AKo, AQo, AJo, KQo
+    "RFI_UTG2": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, " +
+        "QJs, QTs, JTs, J9s, T9s, 98s, 87s, 76s, " +
+        "AKo, AQo, AJo, KQo"
+    },
+
+    // Lojack (LJ) — 242/1326 (18.3%)
+    // Pairs: AA-33
+    // Suited: AKs-A2s (alle), KQs-K9s, QJs-Q9s, JTs-J9s, T9s, 98s, 87s, 76s, 65s
+    // Offsuit: AKo, AQo, AJo, ATo, KQo
+    "RFI_LJ": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, " +
+        "QJs, QTs, Q9s, " +
+        "JTs, J9s, T9s, 98s, 87s, 76s, 65s, " +
+        "AKo, AQo, AJo, ATo, KQo"
+    },
+
+    // Hijack (HJ) — 282/1326 (21.3%)
+    // Pairs: AA-22
+    // Suited: AKs-A2s, KQs-K7s, QJs-Q9s, JTs-J9s, T9s-T8s, 98s, 87s, 76s, 65s, 54s
+    // Offsuit: AKo, AQo, AJo, ATo, KQo, KJo, QJo
+    "RFI_HJ": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, K8s, K7s, " +
+        "QJs, QTs, Q9s, " +
+        "JTs, J9s, T9s, T8s, 98s, 87s, 76s, 65s, 54s, " +
+        "AKo, AQo, AJo, ATo, KQo, KJo, QJo"
+    },
+
+    // Cutoff (CO) — 358/1326 (27.0%)
+    // Pairs: AA-22
+    // Suited: AKs-A2s, KQs-K4s, QJs-Q8s, JTs-J8s, T9s-T8s, 98s-97s, 87s, 76s, 65s, 54s
+    // Offsuit: AKo-A9o, KQo-KTo, QTo-QJo, JTo
+    "RFI_CO": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, " +
+        "QJs, QTs, Q9s, Q8s, " +
+        "JTs, J9s, J8s, T9s, T8s, 98s, 97s, 87s, 76s, 65s, 54s, " +
+        "AKo, AQo, AJo, ATo, A9o, KQo, KJo, KTo, QJo, QTo, JTo"
+    },
+
+    // Button (BTN) — 678/1326 (51.1%)
+    // Pairs: AA-22
+    // Suited: AKs-A2s, KQs-K2s, QJs-Q2s, JTs-J5s, T9s-T6s, 98s-96s, 87s-85s, 76s-75s, 65s, 54s, 43s
+    // Offsuit: AKo-A2o, KQo-K8o, QJo-Q9o, JTo-J9o, T9o
+    "RFI_BTN": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, " +
+        "QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, " +
+        "JTs, J9s, J8s, J7s, J6s, J5s, " +
+        "T9s, T8s, T7s, T6s, " +
+        "98s, 97s, 96s, 87s, 86s, 85s, 76s, 75s, 65s, 54s, 43s, " +
+        "AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, " +
+        "KQo, KJo, KTo, K9o, K8o, " +
+        "QJo, QTo, Q9o, JTo, J9o, T9o"
+    },
+
+    // Small Blind (SB) — Raise for Value 118/934 (12.6%) + Raise as Bluff 172/934 (18.4%)
+    // Pagina 3: SB heeft RFI-raise én limp-range; hier de raise-range (value + bluff = groene cellen)
+    // Pairs: AA-22
+    // Suited: AKs-A2s, KQs-K2s, QJs-Q2s, JTs-J2s, T9s-T4s, 98s-95s, 87s-85s, 76s-74s, 65s-64s, 54s-53s, 43s
+    // Offsuit: AKo-A2o, KQo-K7o, QJo-Q8o, JTo-J8o, T9o-T8o, 98o
+    // (Limp = 644/934 = 48.6% — aparte strategie, niet in trainer verwerkt)
+    "RFI_SB": { type:"RFI", raise:
+        "AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, " +
+        "AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, " +
+        "KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, " +
+        "QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, Q4s, Q3s, Q2s, " +
+        "JTs, J9s, J8s, J7s, J6s, J5s, J4s, J3s, J2s, " +
+        "T9s, T8s, T7s, T6s, T5s, T4s, " +
+        "98s, 97s, 96s, 95s, 87s, 86s, 85s, 76s, 75s, 74s, 65s, 64s, 54s, 53s, 43s, " +
+        "AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, " +
+        "KQo, KJo, KTo, K9o, K8o, K7o, " +
+        "QJo, QTo, Q8o, JTo, J8o, T9o, T8o, 98o"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // FACING RFI — pagina 4: EP/MP
+    // ════════════════════════════════════════════════════════
+
+    "FACING_UTG1_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, K9s, Q9s, J9s, T9s",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, KQs, QJs"
+    },
+    "FACING_UTG2_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"JJ, TT, 99, 88, 77, AQs, AJs, ATs, KQs, QJs, JTs"
+    },
+    "FACING_UTG2_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"JJ, TT, 99, 88, 77, AQs, AJs, ATs, KQs, QJs, JTs"
+    },
+    "FACING_LJ_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, K9s, Q9s, J9s, T9s, 98s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, QJs, JTs, AQo"
+    },
+    "FACING_LJ_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, K9s, Q9s, J9s, T9s, 98s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, QJs, JTs, AQo"
+    },
+    "FACING_LJ_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, AQo"
+    },
+    "FACING_HJ_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, AQs, AJs, ATs, KQs, QJs, JTs, T9s"
+    },
+    "FACING_HJ_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s"
+    },
+    "FACING_HJ_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_HJ_VS_LJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s, K9s, Q9s, J9s, T9s, 98s, 87s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // FACING RFI — pagina 5: CO
+    // ════════════════════════════════════════════════════════
+
+    "FACING_CO_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, ATs, KQs, QJs, JTs"
+    },
+    "FACING_CO_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, ATs, KQs, QJs, JTs"
+    },
+    "FACING_CO_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_CO_VS_LJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, A5s, A4s, A3s, A2s, K9s, Q9s, J9s, T9s",
+        "Call":"TT, 99, 88, 77, 66, AJs, ATs, KQs, KJs, QJs, JTs, AQo"
+    },
+    "FACING_CO_VS_HJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, A5s, A4s, A3s, A2s, K9s, Q9s, J9s, T9s, 98s, 87s, 76s, 65s",
+        "Call":"99, 88, 77, 66, 55, 44, 33, AJs, ATs, A9s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AJo, KQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // FACING RFI — pagina 6: BTN
+    // ════════════════════════════════════════════════════════
+
+    "FACING_BTN_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"JJ, TT, 99, 88, 77, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_BTN_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_BTN_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_BTN_VS_LJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, A5s, A4s, A3s, A2s, K9s",
+        "Call":"TT, 99, 88, 77, 66, 55, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "FACING_BTN_VS_HJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, A5s, A4s, A3s, A2s, K9s, K8s, K7s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AJs, ATs, A9s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AQo, AJo"
+    },
+    "FACING_BTN_VS_CO": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, 99, 88, AKs, AKo, AQs, AQo, AJo, A5s, A4s, A3s, A2s, K9s, K8s, K7s, Q9s, Q8s, J9s, T9s, 98s, 87s, 76s, 65s, 54s, 43s",
+        "Call":"77, 66, 55, 44, 33, 22, AJs, ATs, A9s, A8s, A7s, A6s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, J9s, T9s, T8s, ATo, KQo, KJo, QJo, JTo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // FACING RFI — pagina 7: SB
+    // ════════════════════════════════════════════════════════
+
+    "FACING_SB_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, 87s"
+    },
+    "FACING_SB_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, 87s"
+    },
+    "FACING_SB_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, 87s"
+    },
+    "FACING_SB_VS_LJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, 87s, 76s"
+    },
+    "FACING_SB_VS_HJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, 87s, 76s"
+    },
+    "FACING_SB_VS_CO": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJo, A5s, A4s, A3s, A2s, K9s, K8s, Q9s, J9s, T9s, 98s, 87s, 76s, 65s",
+        "Call":""
+    },
+    "FACING_SB_VS_BTN": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, 99, AKs, AKo, AQs, AQo, AJo, A5s, A4s, A3s, A2s, K9s, K8s, Q9s, J9s, T9s, 98s, 87s, 76s, 65s",
+        "Call":""
+    },
+
+    // ════════════════════════════════════════════════════════
+    // FACING RFI — pagina 8: BB
+    // ════════════════════════════════════════════════════════
+
+    "FACING_BB_VS_UTG": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, 98s, 87s, 76s, AQo, AJo"
+    },
+    "FACING_BB_VS_UTG1": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, 98s, 87s, 76s, AQo, AJo"
+    },
+    "FACING_BB_VS_UTG2": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, 98s, 87s, 76s, AQo, AJo"
+    },
+    "FACING_BB_VS_LJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, T9s, 98s, 87s, 76s, AQo, AJo"
+    },
+    "FACING_BB_VS_HJ": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, T9s, 98s, 87s, 76s, 65s, AQo, AJo, KQo"
+    },
+    "FACING_BB_VS_CO": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, A5s, A4s, A3s, A2s, K9s",
+        "Call":"99, 88, 77, 66, 55, 44, 33, 22, AJs, ATs, A9s, A8s, A7s, A6s, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 87s, 76s, 65s, AQo, AJo, ATo, KQo, KJo, QJo"
+    },
+    "FACING_BB_VS_BTN": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, A5s, A4s, A3s, A2s, K9s, K8s, Q9s",
+        "Call":"99, 88, 77, 66, 55, 44, 33, 22, AJs, ATs, A9s, A8s, A7s, A6s, KQs, KJs, KTs, K9s, K8s, QJs, QTs, Q9s, Q8s, JTs, J9s, J8s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, AJo, ATo, A9o, KQo, KJo, QJo, JTo"
+    },
+    "FACING_BB_VS_SB": { type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A3s, A2s, KQs, KJs, KTs, K9s, QJs, QTs, JTs, T9s, 98s, 87s, 76s, 65s, AQo, AJo, ATo, KQo, KJo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 9: UTG
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_UTG_VS_UTG1": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, ATs, KQs, QJs, JTs"
+    },
+    "VS_3BET_UTG_VS_UTG2": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, ATs, KQs, QJs, JTs, T9s"
+    },
+    "VS_3BET_UTG_VS_LJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, AQs, AJs, ATs, KQs, QJs, JTs, T9s"
+    },
+    "VS_3BET_UTG_VS_HJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_UTG_VS_CO": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_UTG_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_UTG_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 10: UTG+1
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_UTG1_VS_UTG2": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_UTG1_VS_LJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_UTG1_VS_HJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG1_VS_CO": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG1_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG1_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG1_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 11: UTG+2
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_UTG2_VS_LJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_UTG2_VS_HJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG2_VS_CO": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG2_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG2_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+    "VS_3BET_UTG2_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, 98s, AQo, KQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 12: LJ
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_LJ_VS_HJ": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, AQs, AJs, ATs, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_LJ_VS_CO": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, AQo"
+    },
+    "VS_3BET_LJ_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, AQo"
+    },
+    "VS_3BET_LJ_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, 87s, 76s, AQo"
+    },
+    "VS_3BET_LJ_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, 87s, AQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 13: HJ/CO
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_HJ_VS_CO": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, AQo"
+    },
+    "VS_3BET_HJ_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, AQo"
+    },
+    "VS_3BET_HJ_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, 87s, AQo"
+    },
+    "VS_3BET_HJ_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, AKs, AKo, A5s, A4s, A3s",
+        "Call":"TT, 99, 88, 77, 66, 55, AQs, AJs, ATs, A9s, KQs, KJs, QJs, JTs, T9s, 98s, AQo"
+    },
+    "VS_3BET_CO_VS_BTN": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_CO_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_CO_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, A5s, A4s, A3s, A2s",
+        "Call":"99, 88, 77, 66, 55, 44, AQs, AJs, ATs, A9s, KQs, KJs, KTs, QJs, JTs, T9s, AQo, KQo"
+    },
+
+    // ════════════════════════════════════════════════════════
+    // RFI vs 3-BET — pagina 14: BTN/SB
+    // ════════════════════════════════════════════════════════
+
+    "VS_3BET_BTN_VS_SB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_BTN_VS_BB": { type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, A5s, A4s, A3s, A2s, K9s",
+        "Call":"99, 88, 77, 66, 55, 44, 33, 22, AQs, AJs, ATs, A9s, A8s, A7s, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AQo, KQo"
+    },
+    "VS_3BET_SB_VS_BB": { type:"VS_3BET",
+        "4-Bet":"QQ, JJ, AKs, AQs, AJs, ATs, A5s, A4s",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, KQs, KJs, KTs, K9s, QJs, QTs, JTs, J9s, T9s, 98s, 87s, 76s, 65s, A9s, A8s"
+    },
+
+
+    // ════════════════════════════════════════════════════════════════════════════════════
+    // ── POKERTRAINER.SE — ONLINE LOW STAKES CASH GAME (6-max schema) ─────────────────
+    // Positie-mapping: UTG=UTG, MP=MP (eigen slot), CO=CO, BTN=BTN, SB=SB, BB=BB
+    // "MP" wordt behandeld als extra positie tussen UTG en CO
+    // ════════════════════════════════════════════════════════════════════════════════════
+
+    // ── OPEN RAISE (RFI) ── pagina 2 ─────────────────────────────────────────────────
+    // UTG 17.5% — AA-77, broadways, ATs+, some suited connectors
+    "RFI6_UTG": { type:"RFI", raise:"AA, KK, QQ, JJ, TT, 99, 88, 77, AKs, AQs, AJs, ATs, KQs, KJs, KTs, QJs, QTs, JTs, T9s, AKo, AQo, AJo, KQo" },
+    // MP 21.3%
+    "RFI6_MP":  { type:"RFI", raise:"AA, KK, QQ, JJ, TT, 99, 88, 77, 66, AKs, AQs, AJs, ATs, A9s, KQs, KJs, KTs, K9s, QJs, QTs, Q9s, JTs, J9s, T9s, 98s, 87s, AKo, AQo, AJo, ATo, KQo, KJo" },
+    // CO 28.5%
+    "RFI6_CO":  { type:"RFI", raise:"AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, K7s, QJs, QTs, Q9s, Q8s, Q7s, JTs, J9s, J8s, T9s, T8s, 98s, 97s, 87s, 76s, 65s, AKo, AQo, AJo, ATo, A9o, KQo, KJo, KTo, QJo" },
+    // BTN 41.8%
+    "RFI6_BTN": { type:"RFI", raise:"AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, JTs, J9s, J8s, J7s, J6s, J5s, T9s, T8s, T7s, 98s, 97s, 96s, 87s, 86s, 85s, 76s, 75s, 65s, 64s, 54s, 43s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, QJo, QTo, Q9o, JTo, J9o, T9o" },
+    // SB 41.8%
+    "RFI6_SB":  { type:"RFI", raise:"AA, KK, QQ, JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AKs, AQs, AJs, ATs, A9s, A8s, A7s, A6s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s, K7s, K6s, K5s, K4s, K3s, K2s, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, JTs, J9s, J8s, J7s, J6s, J5s, T9s, T8s, T7s, 98s, 97s, 96s, 87s, 86s, 85s, 76s, 75s, 65s, 64s, 54s, 43s, AKo, AQo, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, QJo, QTo, Q9o, JTo, J9o, T9o" },
+
+    // ── FACING RFI — CALLING (pagina 3-5) ─────────────────────────────────────────────
+    // Call in BTN vs UTG (4.2%) — 99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44
+    "FACING6_BTN_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AQo, JJ, TT",
+        "Call":"99, 98s, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44"
+    },
+    // Call in BB vs UTG (18.4%)
+    "FACING6_BB_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KTs, K9s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, KQs, KJs, KQo, QJs, QTs, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s, K8s, Q9s, Q8s"
+    },
+    // Call in BTN vs MP (3.2%) — 99, 98s, 88, 87s, 77, 76s, 66, 55
+    "FACING6_BTN_VS_MP": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AQo, JJ",
+        "Call":"TT, 99, 98s, 88, 87s, 77, 76s, 66, 55"
+    },
+    // Call in BB vs MP (19.5%)
+    "FACING6_BB_VS_MP": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KJs, KTs, K9s",
+        "Call":"JJ, TT, 99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, AJo, ATo, A9o, A8o, KQs, KQo, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s, K8s"
+    },
+    // Call in BTN vs CO (2.3%) — 99, 98s, 88, 87s, 77, 76s
+    "FACING6_BTN_VS_CO": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AQo, AJs, AJo, JJ, TT",
+        "Call":"99, 98s, 88, 87s, 77, 76s, 66"
+    },
+    // Call in BB vs CO (21.9%)
+    "FACING6_BB_VS_CO": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AJs, ATs, A9s, A5s, A4s, A3s, A2s, KJs, KTs, K9s, K8s",
+        "Call":"JJ, TT, 99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, KQs, KQo, KJo, QJs, QTs, Q9s, Q8s, JTs, J9s, J8s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s"
+    },
+    // Call in BB vs BTN (25.8%)
+    "FACING6_BB_VS_BTN": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AJs, ATs, A9s, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s, K8s",
+        "Call":"JJ, TT, 99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, QJs, QTs, Q9s, Q8s, Q7s, Q6s, Q5s, JTs, J9s, J8s, J7s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s, 53s"
+    },
+    // Call in BB vs SB (35%)
+    "FACING6_BB_VS_SB": {
+        type:"FACING",
+        "3-Bet":"QQ, KK, AA, AKs, AKo, AQs, AJs, ATs, A5s, A4s, A3s, A2s, KQs, KJs, KTs, K9s",
+        "Call":"JJ, TT, 99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KQo, KJo, KTo, K9o, K8o, K7s, QJs, QTs, Q9s, Q8s, Q7s, JTs, J9s, J8s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s"
+    },
+
+    // ── FACING RFI — 3-BET (pagina 6-8) ──────────────────────────────────────────────
+    // 3-bet MP vs UTG (7.9%)
+    "3BET6_MP_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, AQo, AJs, A5s, A4s",
+        "Call":""
+    },
+    // 3-bet CO vs UTG (8.3%)
+    "3BET6_CO_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, A5s, A4s, A3s",
+        "Call":""
+    },
+    // 3-bet BTN vs UTG (8.3%)
+    "3BET6_BTN_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, A5s, A4s, A3s",
+        "Call":""
+    },
+    // 3-bet SB vs UTG (7.4%)
+    "3BET6_SB_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, AQo, AJs, A5s, A4s, A3s, A2s",
+        "Call":""
+    },
+    // 3-bet BB vs UTG (5.6%)
+    "3BET6_BB_VS_UTG": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, AQs, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, 55, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, KQs, KQo, QJs, QTs, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s, K8s, Q9s"
+    },
+    // 3-bet CO vs MP (9.5%)
+    "3BET6_CO_VS_MP": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, AJo, A5s, A4s, A3s",
+        "Call":""
+    },
+    // 3-bet BTN vs MP (9.5%)
+    "3BET6_BTN_VS_MP": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, AJo, A5s, A4s, A3s",
+        "Call":""
+    },
+    // 3-bet SB vs MP (9.2%)
+    "3BET6_SB_VS_MP": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, A5s, A4s, A3s, A2s",
+        "Call":""
+    },
+    // 3-bet BB vs MP (7.2%)
+    "3BET6_BB_VS_MP": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, AKs, AKo, AQs, A5s, A4s, A3s, A2s",
+        "Call":"JJ, TT, 99, 88, 77, 66, KJs, KTs, K9s, QJs, QTs, JTs, T9s, 98s, AJo"
+    },
+    // 3-bet BTN vs CO (12.8%)
+    "3BET6_BTN_VS_CO": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, AJo, A5s, A4s, A3s, A2s, KQs, KJs, JTs, J9s",
+        "Call":""
+    },
+    // 3-bet SB vs CO (11.5%)
+    "3BET6_SB_VS_CO": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AQo, AJs, A5s, A4s, A3s, A2s, KQs, 99",
+        "Call":""
+    },
+    // 3-bet BB vs CO (9.1%)
+    "3BET6_BB_VS_CO": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, AKs, AKo, AQs, A5s, A4s, A3s, A2s, KQs",
+        "Call":"TT, 99, 88, 77, 66, 55, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, KJs, KTs, K9s, K8s, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 87s, 76s"
+    },
+    // 3-bet SB vs BTN (15.1%)
+    "3BET6_SB_VS_BTN": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, 99, AKs, AKo, AQs, AQo, AJs, AJo, A5s, A4s, A3s, A2s, KQs, KJs, KTs, QJs, JTs",
+        "Call":""
+    },
+    // 3-bet BB vs BTN (13.9%)
+    "3BET6_BB_VS_BTN": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, A5s, A4s, A3s, A2s, KQs, K9s",
+        "Call":"99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, AJo, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KJs, KTs, KQo, QJs, QTs, Q9s, JTs, J9s, T9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s"
+    },
+    // 3-bet BB vs SB (17.4%)
+    "3BET6_BB_VS_SB": {
+        type:"FACING",
+        "3-Bet":"AA, KK, QQ, JJ, TT, AKs, AKo, AQs, AJs, A5s, A4s, A3s, A2s, KQs, KJs, T9s",
+        "Call":"99, 88, 87s, 77, 76s, 66, 65s, 55, 54s, 44, 33, 22, ATo, A9o, A8o, A7o, A6o, A5o, A4o, A3o, A2o, KTs, K9s, KQo, KJo, KTo, K9o, K8o, QJs, QTs, Q9s, Q8s, JTs, J9s, T8s, 98s, 97s, 87s, 86s, 76s, 75s, 65s, 64s"
+    },
+
+    // ── VS 3-BET — CALL 3-BET (pagina 9-11) ──────────────────────────────────────────
+    // Call 3-bet UTG vs MP (2.3%) — AQs, AJs, ATs, TT, 99, 88
+    "VS3BET6_UTG_VS_MP": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ"
+    },
+    // Call 3-bet UTG vs CO (2.3%)
+    "VS3BET6_UTG_VS_CO": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ"
+    },
+    // Call 3-bet UTG vs BTN (2.7%)
+    "VS3BET6_UTG_VS_BTN": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ, 77"
+    },
+    // Call 3-bet UTG vs SB (3.2%) — adds QQ, JJ
+    "VS3BET6_UTG_VS_SB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, AKs, AKo",
+        "Call":"QQ, JJ, TT, 99, 88, AQs, AJs, ATs, KQs, JTs"
+    },
+    // Call 3-bet UTG vs BB (3.6%)
+    "VS3BET6_UTG_VS_BB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, AKs, AKo",
+        "Call":"QQ, JJ, TT, 99, 88, AQs, AJs, ATs, KQs, JTs, KJs"
+    },
+    // Call 3-bet MP vs CO (2.3%)
+    "VS3BET6_MP_VS_CO": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ"
+    },
+    // Call 3-bet MP vs BTN (2.7%)
+    "VS3BET6_MP_VS_BTN": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ, 77"
+    },
+    // Call 3-bet MP vs SB (2.7%)
+    "VS3BET6_MP_VS_SB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"AQs, AJs, ATs, TT, 99, 88, JJ, 77"
+    },
+    // Call 3-bet MP vs BB (3.9%)
+    "VS3BET6_MP_VS_BB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, AKs, AKo",
+        "Call":"QQ, JJ, TT, 99, 88, AQs, AJs, ATs, KQs, JTs, KJs"
+    },
+    // Call 3-bet CO vs BTN (4.2%)
+    "VS3BET6_CO_VS_BTN": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, 98s, 88, AQs, AJs, ATs, KQs, KJs, KTs, JTs"
+    },
+    // Call 3-bet CO vs SB (2.9%)
+    "VS3BET6_CO_VS_SB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, AQs, AJs, JTs"
+    },
+    // Call 3-bet CO vs BB (4.5%)
+    "VS3BET6_CO_VS_BB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, 88, AQs, AJs, ATs, KQs, KJs, KTs, JTs, JTs"
+    },
+    // Call 3-bet BTN vs SB (4.4%)
+    "VS3BET6_BTN_VS_SB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, 98s, AQs, AJs, ATs, KQs, KJs, KTs, JTs, T9s"
+    },
+    // Call 3-bet BTN vs BB (7.1%)
+    "VS3BET6_BTN_VS_BB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, 98s, 88, 87s, AQs, AJs, ATs, KQs, KJs, KTs, QJs, JTs, T9s, 65s"
+    },
+    // Call 3-bet SB vs BB (5%)
+    "VS3BET6_SB_VS_BB": {
+        type:"VS_3BET",
+        "4-Bet":"AA, KK, QQ, AKs, AKo",
+        "Call":"JJ, TT, 99, AQs, AJs, ATs, KQs, KJs, JTs, 55"
+    }
+};
+
+const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+const allPositions = ['UTG','UTG1','UTG2','LJ','HJ','CO','BTN','SB','BB','MP'];
+// MP maps to UTG2 seat visually
+const seatId = pos => pos === 'MP' ? 'UTG2' : pos;
+
+let currentHand = "";
+let correctAction = "";
+let activeScenarioKey = "";
+let score = 0, total = 0;
+let answered = false;
+
+function parseRange(rangeStr) {
+    if (!rangeStr) return [];
+    let hands = new Set();
+    let parts = rangeStr.split(',').map(s => s.trim());
+    parts.forEach(p => {
+        if (p.length === 3 && p[0] === p[1] && p.endsWith('+')) {
+            let start = ranks.indexOf(p[0]);
+            for (let i = start; i < ranks.length; i++) hands.add(ranks[i] + ranks[i]);
+        } else if (p.length === 4 && p.endsWith('+')) {
+            let top = ranks.indexOf(p[0]);
+            let start = ranks.indexOf(p[1]);
+            for (let i = start; i <= top; i++) {
+                if (ranks[i] !== ranks[top]) hands.add(ranks[top] + ranks[i] + p[2]);
+            }
+        } else { hands.add(p); }
+    });
+    return Array.from(hands);
+}
+
+// Extract hero position from any key format
+function heroFromKey(key) {
+    if (key.startsWith("RFI_"))      return key.slice(4);
+    if (key.startsWith("RFI6_"))     return key.slice(5);
+    if (key.startsWith("FACING_"))   return key.slice(7).split("_VS_")[0];
+    if (key.startsWith("FACING6_"))  return key.slice(8).split("_VS_")[0];
+    if (key.startsWith("3BET6_"))    return key.slice(6).split("_VS_")[0];
+    if (key.startsWith("VS_3BET_"))  return key.slice(8).split("_VS_")[0];
+    if (key.startsWith("VS3BET6_"))  return key.slice(9).split("_VS_")[0];
+    return null;
+}
+
+// Extract villain position from any key format
+function villainFromKey(key) {
+    if (key.startsWith("RFI_") || key.startsWith("RFI6_")) return null;
+    const vsIdx = key.indexOf("_VS_");
+    if (vsIdx === -1) return null;
+    return key.slice(vsIdx + 4);
+}
+
+function dealHand() {
+    answered = false;
+
+    // Pick a random position
+    const heroPos = allPositions[Math.floor(Math.random() * allPositions.length)];
+
+    // Find valid scenarios for that position
+    const validKeys = Object.keys(pokerRanges).filter(key => heroFromKey(key) === heroPos);
+
+    if (validKeys.length === 0) { dealHand(); return; }
+
+    activeScenarioKey = validKeys[Math.floor(Math.random() * validKeys.length)];
+    const scenarioData = pokerRanges[activeScenarioKey];
+
+    // Deal two cards
+    const suits = ['♠','♥','♦','♣'];
+    let r1 = ranks[Math.floor(Math.random() * ranks.length)];
+    let r2 = ranks[Math.floor(Math.random() * ranks.length)];
+    let s1 = suits[Math.floor(Math.random() * suits.length)];
+    let s2 = suits[Math.floor(Math.random() * suits.length)];
+    while (r1 === r2 && s1 === s2) { s2 = suits[Math.floor(Math.random() * suits.length)]; }
+
+    let i1 = ranks.indexOf(r1), i2 = ranks.indexOf(r2);
+    let hi = i1 >= i2 ? r1 : r2, lo = i1 >= i2 ? r2 : r1;
+    currentHand = hi === lo ? hi + lo : hi + lo + (s1 === s2 ? 's' : 'o');
+
+    // Determine correct action
+    correctAction = "Fold";
+    if (scenarioData.type === "RFI") {
+        if (parseRange(scenarioData.raise).includes(currentHand)) correctAction = "Raise";
+    } else {
+        let aggrKey = scenarioData.type === "VS_3BET" ? "4-Bet" : "3-Bet";
+        if (parseRange(scenarioData[aggrKey]).includes(currentHand)) correctAction = aggrKey;
+        else if (parseRange(scenarioData["Call"]).includes(currentHand)) correctAction = "Call";
+    }
+
+    // Update visuals
+    updateTable(heroPos, activeScenarioKey, r1, s1, r2, s2);
+    updateButtons(scenarioData.type);
+
+    // Update position label
+    const posNames = { UTG:'UTG', UTG1:'UTG+1', UTG2:'UTG+2', LJ:'LJ', HJ:'HJ', CO:'CO', BTN:'BTN', SB:'SB', BB:'BB', MP:'MP' };
+    document.getElementById('pos-label').textContent = posNames[heroPos] || heroPos;
+
+    // Update hand cards in action panel
+    const sc1 = (s1==='♥'||s1==='♦') ? 'red' : 'black';
+    const sc2 = (s2==='♥'||s2==='♦') ? 'red' : 'black';
+    const hc1 = document.getElementById('hc1');
+    const hc2 = document.getElementById('hc2');
+    hc1.className = `hand-card-big ${sc1}`; hc1.textContent = r1+s1; hc1.style.animationName='none'; void hc1.offsetWidth; hc1.style.animationName='';
+    hc2.className = `hand-card-big ${sc2}`; hc2.textContent = r2+s2; hc2.style.animationName='none'; void hc2.offsetWidth; hc2.style.animationName='';
+    document.getElementById('hand-notation').textContent = currentHand;
+
+    document.getElementById('feedback').textContent = '';
+    document.getElementById('feedback').className = 'feedback';
+
+    document.getElementById('action-buttons').style.display = 'flex';
+    document.getElementById('next-btn').style.display = 'none';
+}
+
+function updateTable(heroPos, scenarioKey, r1, s1, r2, s2) {
+    // Reset all seats
+    document.querySelectorAll('.seat').forEach(seat => {
+        seat.classList.remove('hero', 'villain', 'result-correct', 'result-wrong');
+        seat.querySelector('.seat-cards').innerHTML = '';
+    });
+    // Reset all villain badges
+    document.querySelectorAll('.villain-action-badge').forEach(b => {
+        b.textContent = ''; b.className = 'villain-action-badge';
+    });
+    // Hide all chip stacks
+    document.querySelectorAll('.chip-stack').forEach(c => {
+        c.classList.remove('visible');
+        c.innerHTML = '';
+    });
+
+    // Dealer button always visible at BTN
+    document.getElementById('dealer-btn').style.opacity = '1';
+
+    // Determine villain and scenario details
+    const isRFI     = scenarioKey.startsWith("RFI_") || scenarioKey.startsWith("RFI6_");
+    const isFacing  = scenarioKey.startsWith("FACING_") || scenarioKey.startsWith("FACING6_") || scenarioKey.startsWith("3BET6_");
+    const isVs3bet  = scenarioKey.startsWith("VS_3BET_") || scenarioKey.startsWith("VS3BET6_");
+    const oppPos = villainFromKey(scenarioKey);
+
+    let scenarioType = isRFI ? 'rfi' : isFacing ? 'facing' : 'vs3bet';
+    let badgeText = '', badgeClass = '';
+    let centerBadgeText = '', centerVerbText = '', centerPosText = '';
+
+    if (isFacing) {
+        badgeText = '↑ Open Raise · 2.5bb';
+        badgeClass = 'badge-raise';
+        centerBadgeText = 'Facing RFI';
+        centerPosText = oppPos || '?';
+        centerVerbText = 'open-raised voor jou (2.5 BB)';
+    } else if (isVs3bet) {
+        badgeText = '↑↑ 3-Bet · ~9bb';
+        badgeClass = 'badge-3bet';
+        centerBadgeText = 'Facing 3-Bet';
+        centerPosText = oppPos || '?';
+        centerVerbText = '3-bet jouw open-raise (~9 BB)';
+    } else {
+        centerBadgeText = 'RFI';
+        centerPosText = heroPos;
+        centerVerbText = 'iedereen foldt naar jou';
+    }
+
+    // Update center scenario card
+    const card = document.getElementById('scenario-card');
+    const badge = document.getElementById('scenario-badge');
+    const posEl = document.getElementById('scenario-pos');
+    const verbEl = document.getElementById('scenario-verb');
+    card.className = `scenario-card ${scenarioType === 'rfi' ? 'rfi-mode' : scenarioType === 'facing' ? 'facing-mode' : 'vs3bet-mode'}`;
+    badge.textContent = centerBadgeText;
+    posEl.textContent = centerPosText;
+    verbEl.textContent = centerVerbText;
+
+    // Hero seat (MP maps visually to UTG2)
+    const heroSeat = document.getElementById('seat-' + seatId(heroPos));
+    if (heroSeat) {
+        heroSeat.classList.add('hero');
+        const rc1 = (s1==='♥'||s1==='♦') ? 'red' : 'black';
+        const rc2 = (s2==='♥'||s2==='♦') ? 'red' : 'black';
+        heroSeat.querySelector('.seat-cards').innerHTML =
+            `<div class="card ${rc1}" style="animation-delay:0s">${r1}${s1}</div>
+             <div class="card ${rc2}" style="animation-delay:0.08s">${r2}${s2}</div>`;
+    }
+
+    // Villain seat + badge + chips (MP maps visually to UTG2)
+    if (oppPos) {
+        const oppSeat = document.getElementById('seat-' + seatId(oppPos));
+        if (oppSeat) {
+            oppSeat.classList.add('villain');
+            oppSeat.querySelector('.seat-cards').innerHTML =
+                `<div class="card card-back" style="animation-delay:0s"></div>
+                 <div class="card card-back" style="animation-delay:0.08s"></div>`;
+            const vbadge = document.getElementById('vbadge-' + seatId(oppPos));
+            if (vbadge) { vbadge.textContent = badgeText; vbadge.className = `villain-action-badge ${badgeClass}`; }
+        }
+
+        // Show chip stacks (MP maps to UTG2)
+        showChips(seatId(oppPos), isVs3bet ? '3bet' : 'raise');
+        if (isVs3bet) {
+            showChips(seatId(heroPos), 'raise');
+        }
+    }
+}
+
+// ── 3D CHIP TOWER RENDERER ───────────────────────────────────────────────────
+const CHIP_DEF = {
+    white: { top:'#ddd',    mid:'#bbb',    side:'#999',   dark:'#777',  stripe:'#fff',  shine:'rgba(255,255,255,0.7)' },
+    red:   { top:'#e03030', mid:'#b01818', side:'#880808',dark:'#550000',stripe:'#ff8888',shine:'rgba(255,120,120,0.55)' },
+    blue:  { top:'#2060d8', mid:'#1040a0', side:'#082878',dark:'#041850',stripe:'#80b0ff',shine:'rgba(100,160,255,0.55)' },
+    green: { top:'#22aa44', mid:'#147828', side:'#085018',dark:'#042810',stripe:'#66ee99',shine:'rgba(80,220,130,0.5)' },
+    black: { top:'#383838', mid:'#222',    side:'#111',   dark:'#000',  stripe:'#666',  shine:'rgba(150,150,150,0.35)' },
+    gold:  { top:'#d4a020', mid:'#a07010', side:'#6a4800',dark:'#3a2800',stripe:'#ffe080',shine:'rgba(255,230,100,0.6)' },
+};
+
+// Draw a single 3D chip as SVG elements.
+// cx, cy = center of TOP face. W=chip diameter, SH=visible side height, EY=top ellipse y-radius
+function chipSVG(cx, cy, W, SH, EY, colorKey) {
+    const c = CHIP_DEF[colorKey] || CHIP_DEF.white;
+    const rx = W / 2;
+    const id = `c${colorKey}${Math.random().toString(36).slice(2,6)}`;
+
+    // Stripe dots positions (on side, 4 dots at 90° intervals visible from front)
+    const dotR = W * 0.07;
+    const dotY = cy + EY * 0.2;  // slightly below center of top face
+
+    return `
+      <defs>
+        <linearGradient id="sg${id}" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%"   stop-color="${c.dark}"/>
+          <stop offset="18%"  stop-color="${c.side}"/>
+          <stop offset="50%"  stop-color="${c.top}" stop-opacity="0.85"/>
+          <stop offset="80%"  stop-color="${c.mid}"/>
+          <stop offset="100%" stop-color="${c.dark}"/>
+        </linearGradient>
+        <radialGradient id="tg${id}" cx="38%" cy="35%" r="62%">
+          <stop offset="0%"   stop-color="${c.shine.replace('rgba','rgba').replace(/,[^,)]+\)$/,',1)')}"/>
+          <stop offset="45%"  stop-color="${c.top}"/>
+          <stop offset="100%" stop-color="${c.dark}"/>
+        </radialGradient>
+        <radialGradient id="sh${id}" cx="50%" cy="100%" r="60%">
+          <stop offset="0%"   stop-color="rgba(0,0,0,0.45)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
+        </radialGradient>
+      </defs>
+      <!-- ground shadow -->
+      <ellipse cx="${cx}" cy="${cy + SH + EY * 0.55}" rx="${rx * 0.9}" ry="${EY * 0.3}"
+               fill="rgba(0,0,0,0.3)"/>
+      <!-- side cylinder -->
+      <rect x="${cx - rx}" y="${cy}" width="${W}" height="${SH + EY * 0.6}" rx="${rx * 0.08}"
+            fill="url(#sg${id})"/>
+      <!-- bottom cap ellipse -->
+      <ellipse cx="${cx}" cy="${cy + SH}" rx="${rx}" ry="${EY * 0.6}"
+               fill="${c.side}"/>
+      <!-- stripe dots on side (left / right) -->
+      <circle cx="${cx - rx + dotR * 1.8}" cy="${dotY + SH * 0.4}" r="${dotR}" fill="${c.stripe}" opacity="0.9"/>
+      <circle cx="${cx + rx - dotR * 1.8}" cy="${dotY + SH * 0.4}" r="${dotR}" fill="${c.stripe}" opacity="0.9"/>
+      <circle cx="${cx - rx * 0.3}" cy="${dotY + SH * 0.38}" r="${dotR * 0.85}" fill="${c.stripe}" opacity="0.6"/>
+      <circle cx="${cx + rx * 0.3}" cy="${dotY + SH * 0.38}" r="${dotR * 0.85}" fill="${c.stripe}" opacity="0.6"/>
+      <!-- top face -->
+      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${EY}"
+               fill="url(#tg${id})" stroke="${c.dark}" stroke-width="0.5"/>
+      <!-- inset ring on top face -->
+      <ellipse cx="${cx}" cy="${cy}" rx="${rx * 0.72}" ry="${EY * 0.72}"
+               fill="none" stroke="${c.stripe}" stroke-width="1.4" opacity="0.45"/>
+      <!-- shine highlight on top -->
+      <ellipse cx="${cx - rx * 0.22}" cy="${cy - EY * 0.28}" rx="${rx * 0.32}" ry="${EY * 0.25}"
+               fill="${c.shine}" opacity="0.75"/>
+    `;
+}
+
+// Build a tower of N chips stacked on top of each other, rendered as one SVG.
+function drawChipTower(colorStack) {
+    const CW = 38;       // chip diameter px
+    const SH = 7;        // visible side height per chip px
+    const EY = 7;        // top ellipse y-radius px
+    const N = colorStack.length;
+    const PAD = 6;
+
+    // Total SVG height: top ellipse + N*SH + bottom shadow
+    const svgW = CW + PAD * 2;
+    const svgH = EY + N * SH + EY * 0.9 + PAD * 2;
+    const cx = svgW / 2;
+
+    let parts = [];
+    // Draw from bottom to top so upper chips overlay lower
+    for (let i = N - 1; i >= 0; i--) {
+        // cy = center of top face for chip i
+        const cy = PAD + EY + i * SH;
+        parts.push(chipSVG(cx, cy, CW, SH, EY, colorStack[i]));
+    }
+
+    return `<svg xmlns="http://www.w3.org/2000/svg"
+                 width="${svgW}" height="${svgH}"
+                 class="chip-svg"
+                 style="overflow:visible">${parts.join('')}</svg>`;
+}
+
+function showChips(pos, type) {
+    const stack = document.getElementById('chips-' + pos);
+    if (!stack) return;
+    stack.innerHTML = '';
+
+    let colors, labelText, labelClass;
+    if (type === 'raise') {
+        colors = ['blue', 'white', 'white'];      // 3 chips = 2.5 BB raise
+        labelText = '2.5 BB';
+        labelClass = 'raise-label';
+    } else {
+        colors = ['black', 'red', 'red', 'blue', 'blue'];  // 5 chips = ~9 BB 3-bet
+        labelText = '~9 BB';
+        labelClass = 'bet3-label';
+    }
+
+    stack.innerHTML =
+        drawChipTower(colors) +
+        `<div class="chip-label ${labelClass}">${labelText}</div>`;
+
+    // Trigger animation
+    stack.classList.remove('visible');
+    requestAnimationFrame(() => stack.classList.add('visible'));
+}
+
+function updateButtons(type) {
+    document.getElementById('btn-raise').style.display = type === "RFI"     ? 'block' : 'none';
+    document.getElementById('btn-3bet').style.display  = type === "FACING"  ? 'block' : 'none';
+    document.getElementById('btn-4bet').style.display  = type === "VS_3BET" ? 'block' : 'none';
+    document.getElementById('btn-call').style.display  = type !== "RFI"     ? 'block' : 'none';
+    document.getElementById('btn-fold').style.display  = 'block';
+    document.getElementById('next-btn').style.display  = 'none';
+}
+
+function checkAction(playerAction) {
+    if (answered) return;
+    answered = true;
+    total++;
+
+    const feedback = document.getElementById('feedback');
+    const heroSeat = document.querySelector('.seat.hero');
+
+    if (playerAction === correctAction) {
+        feedback.innerHTML = `✓ Correct! <em>${currentHand}</em> is een <strong>${correctAction}</strong>.`;
+        feedback.className = 'feedback correct';
+        score++;
+        if (heroSeat) heroSeat.classList.add('result-correct');
+    } else {
+        feedback.innerHTML = `✗ Fout. Met <em>${currentHand}</em> had je moeten <strong>${correctAction}</strong>.`;
+        feedback.className = 'feedback incorrect';
+        if (heroSeat) heroSeat.classList.add('result-wrong');
+    }
+
+    document.getElementById('score').textContent = score;
+    document.getElementById('total').textContent = total;
+
+    // Accuracy
+    const pct = Math.round((score / total) * 100);
+    document.getElementById('accuracy').textContent = pct + '%';
+    document.getElementById('acc-fill').style.width = pct + '%';
+
+    document.getElementById('action-buttons').style.display = 'flex';
+    // Hide action buttons, show next
+    ['btn-raise','btn-3bet','btn-4bet','btn-call','btn-fold'].forEach(id => {
+        document.getElementById(id).style.display = 'none';
+    });
+    document.getElementById('next-btn').style.display = 'block';
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+    if (answered) {
+        if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); dealHand(); }
+        return;
+    }
+    const type = pokerRanges[activeScenarioKey]?.type;
+    if (e.key === 'r' || e.key === 'R') { if (type==='RFI') checkAction('Raise'); }
+    if (e.key === '3') { if (type==='FACING') checkAction('3-Bet'); }
+    if (e.key === '4') { if (type==='VS_3BET') checkAction('4-Bet'); }
+    if (e.key === 'c' || e.key === 'C') { if (type!=='RFI') checkAction('Call'); }
+    if (e.key === 'f' || e.key === 'F') checkAction('Fold');
+});
+
+window.onload = dealHand;
+</script>
+</body>
+</html>
